@@ -11,13 +11,12 @@ from dmp.msg import *
 from moveit_msgs.msg import RobotTrajectory
 from trajectory_msgs.msg import JointTrajectoryPoint
 
+from lfd_interface.srv import TrainDemonstration, TrainDemonstrationRequest, TrainDemonstrationResponse
 
 class DMPService:
 
     def __init__(self):
-        rospy.Subscriber("/lfd_bringup/teach_trajectory_joint", RobotTrajectory , self.joint_traj_callback)
-        rospy.Subscriber("/lfd_bringup/plan_start_goal_joint", RobotTrajectory , self.plan_joint_callback)
-        self.dmp_ready = False
+        self.server_train_demonstration = rospy.Service("train_demonstration",TrainDemonstration, self.cb_train_demonstration)
     
     #Learn a DMP from demonstration data
     def makeLFDRequest(self, dims, traj, dt, K_gain, D_gain, num_bases):
@@ -66,57 +65,38 @@ class DMPService:
                 
         return resp 
     
-    def plan_joint_callback(self, msg):
-        if self.dmp_ready==False:
-            return
+    def cb_train_demonstration(self,req : TrainDemonstrationRequest):
+        joint_trajectory = []
+        for point in req.demonstration.joint_trajectory.points:
+            joint_trajectory.append(list(point.positions))
+
         
-        rospy.loginfo("entered plan callback")
-        x_0 = list(msg.joint_trajectory.points[0].positions)
-        x_dot_0 = [0.0,0.0,0.0,0.0,0.0,0.0,0.0]   
-        t_0 = 0                
-        goal = list(msg.joint_trajectory.points[1].positions)
-        goal_thresh = [0.05,0.05]
-        seg_length = 20          
-        tau = 10       
-        dt = 1.0
-        integrate_iter = 5
-        plan = self.makePlanRequest(x_0, x_dot_0, t_0, goal, goal_thresh, 
-                            seg_length, tau, dt, integrate_iter)
-
-        #TODO the topic namespace (lfd_bringup) is fragile and prune to bugs, how to overcome it?
-        pub = rospy.Publisher('/lfd_bringup/plan_trajectory_joint', RobotTrajectory, queue_size=1, latch=True)
-        plan_traj = RobotTrajectory()
-        for point in plan.plan.points:
-            traj_point = JointTrajectoryPoint()
-            traj_point.positions = tuple(point.positions)
-            plan_traj.joint_trajectory.points.append(traj_point)
-        
-        plan_traj.joint_trajectory.joint_names = msg.joint_trajectory.joint_names # ("panda_joint1","panda_joint2","panda_joint3","panda_joint4","panda_joint5","panda_joint6","panda_joint7")
-        pub.publish(plan_traj)
-
-
-    def joint_traj_callback(self, msg):
-        print ("entered teach callback")
-        joint_datapoints = msg.joint_trajectory.points
-        joint_traj = []
-        for point in joint_datapoints:
-            joint_traj.append(list(point.positions))
-        
-
-        #Create a DMP from a 2-D trajectory
         dims = 7                
         dt = 1.0                
         K = 200                 
         D = 2.0 * np.sqrt(K)      
         num_bases = 8          
 
-        resp = self.makeLFDRequest(dims, joint_traj, dt, K, D, num_bases)
+        resp = self.makeLFDRequest(dims, joint_trajectory, dt, K, D, num_bases)
 
         #Set it as the active DMP
         self.makeSetActiveRequest(resp.dmp_list)
-        self.dmp_ready = True
         rospy.loginfo("dmp training completed successfully")
 
+        return TrainDemonstrationResponse(True)
 
+    def cb_plan_joint(self,req):
+        rospy.loginfo("entered plan callback")
 
+        x_0 = list(req.start.positions)
+        x_dot_0 = [0.0,0.0,0.0,0.0,0.0,0.0,0.0]
+        t_0 = 0
+        goal = list(req.goal.positions)
+        goal_thresh = [0.05,0.05,0.05,0.05,0.05,0.05,0.05]
+        seg_length = 20
+        tau = 10
+        dt = 1.0
+        integrate_iter = 5
 
+        plan = self.makePlanRequest(x_0, x_dot_0, t_0, goal, goal_thresh, 
+                    seg_length, tau, dt, integrate_iter)
