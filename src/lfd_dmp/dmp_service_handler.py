@@ -20,11 +20,11 @@ class DMPService:
         self.K = 200
         self.D = 2.0 * np.sqrt(self.K)
         self.num_bases = 8
-        self.dt_default = 1.0
+        self.dt_default = 0.1      # it has to be according to the recording rate of the demonstrated trajectory
 
-        self.integrate_iter = 5     #dt is rather large, so this is > 1  
-        self.seg_length = 20        #-1 for planning until convergence to goal
-        self.goal_thresh = 0.2      # to be duplicated as a list with a length of DOF
+        self.integrate_iter = 1     #dt is rather large, so this is > 1  
+        #self.seg_length = -1        #-1 for planning until convergence to goal
+        self.goal_thresh = 0.00005      # to be duplicated as a list with a length of DOF
 
         self.trained_dmps = {}
 
@@ -34,17 +34,20 @@ class DMPService:
     def cb_train_demonstration(self, req: TrainDemonstrationRequest):
         print(req.demonstration.joint_trajectory)
         joint_path = []
+        joint_timing = []
 
         self.joint_names = req.demonstration.joint_trajectory.joint_names
         self.dof = len(req.demonstration.joint_trajectory.points[0].positions)
 
         for waypoint in req.demonstration.joint_trajectory.points:
             joint_path.append(list(waypoint.positions))
+            joint_timing.append(waypoint.time_from_start.to_sec())
 
-        train_resp = self.train_dmp(joint_path)
+        train_resp = self.train_dmp(joint_path,joint_timing)
 
         #add the dmp to the list of trained dmps for further use
         self.trained_dmps[req.demonstration.name] = train_resp
+
 
         rospy.loginfo("dmp training completed successfully")
 
@@ -59,14 +62,14 @@ class DMPService:
             rospy.logerr("Service call failed: %s"%e)
 
     
-    def train_dmp(self, joint_path):
+    def train_dmp(self, joint_path, joint_timing):
         demo_trajectory = DMPTraj()
 
         for i , waypoint in enumerate(joint_path):
             dmp_point = DMPPoint()
             dmp_point.positions = waypoint
             demo_trajectory.points.append(dmp_point)
-            demo_trajectory.times.append(self.dt_default * i)
+            demo_trajectory.times.append(joint_timing[i])
         
         k_gains = [self.K] * self.dof
         d_gains = [self.D] * self.dof
@@ -95,6 +98,7 @@ class DMPService:
         start = req.start.positions
         goal = req.goal.positions
         tau = self.trained_dmps[req.name].tau
+        self.seg_length = tau
 
         #print(start)
         #print(goal)
@@ -103,10 +107,11 @@ class DMPService:
         #print (planning_resp)
         plan_path = JointTrajectory()
 
-        for point in planning_resp.plan.points:
+        for i, point in enumerate(planning_resp.plan.points):
             pt = JointTrajectoryPoint()
             pt.positions = point.positions
             pt.velocities = point.velocities
+            pt.time_from_start = rospy.Duration.from_sec(planning_resp.plan.times[i])
             plan_path.points.append(pt)
         
         plan_path.joint_names = self.joint_names
