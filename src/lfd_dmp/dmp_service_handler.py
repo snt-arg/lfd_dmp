@@ -32,7 +32,7 @@ class DMPService:
         self.server_plan_dmp = rospy.Service("plan_lfd",PlanLFD, self.cb_plan_dmp)
 
     def cb_train_demonstration(self, req: TrainDemonstrationRequest):
-        print(req.demonstration.joint_trajectory)
+        #print(req.demonstration.joint_trajectory)
         joint_path = []
         joint_timing = []
 
@@ -116,7 +116,7 @@ class DMPService:
         
         plan_path.joint_names = self.joint_names
 
-        print(plan_path)
+        # print(plan_path)
         return PlanLFDResponse(plan_path)
 
 
