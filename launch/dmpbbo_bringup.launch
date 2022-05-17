@@ -1,0 +1,6 @@
+<launch>
+    
+    <node name="dmpbbo_bringup" pkg="lfd_dmp" type="dmpbbo_bringup.py" output="screen">
+    </node>
+
+</launch>
