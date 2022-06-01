@@ -17,7 +17,7 @@ class DMPBBOService:
     def __init__(self):
         #DMP Parameters
         self.num_bases = 10
-        self.dt = 0.01
+        self.dt = 0.2
         self.trained_dmps = {}
 
         self.server_train_demonstration = rospy.Service("train_demonstration",TrainDemonstration, self.cb_train_demonstration)
@@ -46,8 +46,8 @@ class DMPBBOService:
         # Setup DMP
         name='DmpBbo'
 
-        # dmp_type='IJSPEERT_2002_MOVEMENT'
-        dmp_type='KULVICIUS_2012_JOINING'
+        dmp_type='IJSPEERT_2002_MOVEMENT'
+        # dmp_type='KULVICIUS_2012_JOINING'
 
         dmp = Dmp.from_traj(traj, function_apps, name, dmp_type)
 
@@ -60,10 +60,11 @@ class DMPBBOService:
 
     def cb_plan_dmp(self, req : PlanLFDRequest):
         self.dmp = self.trained_dmps[req.name]
-        tau = self.dmp.tau_
+        tau = self.dmp.tau_ * 2
         start = req.start.positions
         goal = req.goal.positions
 
+        self.dmp.set_tau(tau)
         self.dmp.set_initial_state(np.array(start))
         self.dmp.set_attractor_state(np.array(goal))
 
@@ -85,6 +86,7 @@ class DMPBBOService:
         traj_reproduced = self.dmp.statesAsTrajectory(ts,xs_step,xds_step)
 
         plan_path = JointTrajectory()
+        plan_path.header.frame_id = "world"
 
         for i in range(0,n_time_steps):
             pt = JointTrajectoryPoint()
