@@ -60,7 +60,7 @@ class DMPBBOService:
 
     def cb_plan_dmp(self, req : PlanLFDRequest):
         self.dmp = self.trained_dmps[req.name]
-        tau = self.dmp.tau_ * 2
+        tau = self.dmp.tau_ * 1
         start = req.start.positions
         goal = req.goal.positions
 
