@@ -79,7 +79,7 @@ beta_z = 6.25
 
 n_kernel = 15
 
-arr = np.linspace(0,1,n_kernel)[:,np.newaxis] * 0.5
+# arr = np.linspace(0,1,n_kernel)[:,np.newaxis] * 0.5
 ct = np.linspace(0, 1, n_kernel)[:,np.newaxis]
 cx = np.exp(-alpha_x*3*ct)
 c = cx
