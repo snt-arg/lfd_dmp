@@ -32,7 +32,7 @@ from dmpbbo.dynamicalsystems.SpringDamperSystem import SpringDamperSystem
 
 from dmpbbo.to_jsonpickle import *
 
-class Dmp(DynamicalSystem,Parameterizable):
+class Dmp(DynamicalSystem):
 
     def __init__(self, 
         tau, 

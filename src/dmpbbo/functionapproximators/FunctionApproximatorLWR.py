@@ -43,7 +43,8 @@ class FunctionApproximatorLWR(FunctionApproximator):
         return ['slopes','offsets']
         
     def train(self,inputs,targets):
-
+        print("input shape is" + str(inputs.shape))
+        print("targets shape is" + str(targets.shape))
         # Determine the centers and widths of the basis functions, given the input data range
         min_vals = inputs.min(axis=0)
         max_vals = inputs.max(axis=0)

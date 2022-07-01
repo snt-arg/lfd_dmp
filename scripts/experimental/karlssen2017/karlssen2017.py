@@ -1,137 +1,200 @@
-import os, sys
 
-from dmpbbo.functionapproximators.FunctionApproximator import FunctionApproximator
-from dmpbbo.functionapproximators.BasisFunction import *
-from dmpbbo.functionapproximators.leastSquares import *
+#%%
+import numpy as np
+from dmpbbo.dmp.Dmp import *
+from dmpbbo.dynamicalsystems.ExponentialSystem import ExponentialSystem
 
-class FunctionApproximatorKarlssen(FunctionApproximator):
-    
-    def __init__(self,n_basis_functions_per_dim):
+
+
+class FunctionApproximatorKarlssen:
+    def __init__(self, n_kernel, alpha_x):
         
-        ct = np.linspace(0, 1, n_basis_functions_per_dim)[:,np.newaxis]
-        cx = np.exp(-3*ct)
+        self.n_kernel = n_kernel
+        
+        ct = np.atleast_2d(np.linspace(0, 1, n_kernel)).T
+        cx = np.exp(-alpha_x*3*ct)
         c = cx
+        self.c = cx
+        
         d = np.power(np.diff(c,axis=0)*0.55,2)
-        d = 1/np.append(d, d[-1])[:,np.newaxis]
+        d = 1/np.append(d, d[-1])
+        self.d = np.atleast_2d(d).T
         
-        
-        if isinstance(n_basis_functions_per_dim,int):
-            n_basis_functions_per_dim = [n_basis_functions_per_dim]
-        
-        
-        
-        meta_params = {
-            'n_basis_functions_per_dim': n_basis_functions_per_dim,
-            'Cs': c,
-            'Ds': d
-        }
-
-        super().__init__(meta_params)
-
-    def getSelectableParameters(self):
-        return ['Cs','Ds']
-
-    def getSelectableParametersRecommended(self):
-        return ['Cs','Ds']
-        
-    def train(self,inputs,targets):
-
-        psi = np.zeros((target.shape[0],n_kernel))
-
-
-
-        # Determine the centers and widths of the basis functions, given the input data range
-        
-        min_vals = inputs.min(axis=0)
-        max_vals = inputs.max(axis=0)
-        n_bfs_per_dim = self._meta_params['n_basis_functions_per_dim']
-        height = self._meta_params['intersection_height']
-        (centers,widths) = getCentersAndWidths(min_vals, max_vals, n_bfs_per_dim, height)
-       
-        # Get the activations of the basis functions 
-        self._model_params = {}
-        self._model_params['widths'] = widths
-        self._model_params['centers'] = centers
-
-        # Parameters for the weighted least squares regressions
-        use_offset = True
-        n_kernels = np.prod(n_bfs_per_dim)
-        n_dims = centers.shape[1]
-        n_betas = n_dims
-        if (use_offset):
-            n_betas += 1
-        betas = np.ones([n_kernels,n_betas])
-        
-        # Perform one weighted least squares regression for each kernel
-        activations = self.getActivations(inputs)
-        reg = self._meta_params['regularization']
-        for i_kernel in range(n_kernels):
-            weights = activations[:,i_kernel]
-            beta = weightedLeastSquares(inputs,targets,weights,use_offset,reg)
-            betas[i_kernel,:] = beta.T
     
-        self._model_params['offsets'] = np.atleast_2d(betas[:,-1]).T
-        self._model_params['slopes'] = np.atleast_2d(betas[:,0:-1])
-
-    def isTrained(self):
-        """Determine whether the function approximator has already been trained with data or not.
+    def train(self,inputs,targets, s):
+        self.inputs = inputs
+        self.targets = targets
+        self.s = s
+        p = inputs.shape[0]
+        c = self.c
+        d = self.d
+        n_kernel = self.n_kernel
         
-        Returns:
-            bool: True if the function approximator has already been trained, False otherwise.
-        """
-        if not self._model_params:
-            return False
-        if not 'offsets' in self._model_params:
-            return False
-        return True
+        psi = np.zeros((p,n_kernel))
         
-    def getActivations(self,inputs):
-        """Get the activations of the basis functions.
+        inputs = np.squeeze(inputs)
         
-        Uses the centers and widths in the model parameters.
-        
-        Args:
-            inputs (numpy.ndarray): Input values of the query.
-        """
-        normalize = True
-        centers = self._model_params['centers']
-        widths = self._model_params['widths']
-        activations = Gaussian.activations(centers,widths,inputs,normalize)
-        return activations
-        
-    def getLines(self,inputs):
-        if inputs.ndim==1:
-            # Otherwise matrix multiplication below will not work
-            inputs = np.atleast_2d(inputs).T
-        
-        slopes = self._model_params['slopes']
-        offsets = self._model_params['offsets']
-        
-        # Compute the line segments
-        n_lines = offsets.size 
-        n_samples = inputs.shape[0]
-        lines = np.zeros([n_samples,n_lines])
-        for i_line in range(n_lines):
-            # Apparently, not everybody has python3.5 installed, so don't use @
-            #lines[:,i_line] =  inputs@slopes[i_line,:].T + offsets[i_line]
-            lines[:,i_line] = np.dot(inputs,slopes[i_line,:].T) + offsets[i_line]
-
-        return lines
-
-
-    def predict(self,inputs):
-        if not self.isTrained():
-            raise ValueError('FunctionApproximator is not trained.')
-
-        if inputs.ndim==1:
-            # Otherwise matrix multiplication below will not work
-            inputs = np.atleast_2d(inputs).T
+        for t in range(0, p):
+            psi[t,:] = np.squeeze(np.exp(-0.5*np.power(((inputs[t]-c)),2) * d))
             
-        lines = self.getLines(inputs)
-            
-        # Weight the values for each line with the normalized basis function activations  
-        # Get the activations of the basis functions 
-        activations = self.getActivations(inputs)
+        w = np.zeros((n_kernel,1))
         
-        outputs = (lines*activations).sum(axis=1)
-        return outputs
+        for i in range(0, n_kernel):
+            gamma_i = np.diag(psi[:,i])
+            w[i] = np.transpose(s) @ gamma_i @ targets @ np.linalg.inv(np.transpose(s) @ gamma_i @ s)
+            
+        self.w = w
+        
+        
+    def predict(self, input):
+        c = self.c
+        d = self.d
+        w = self.w
+        
+        psi = np.exp(-0.5*np.power(((input-c)),2) * d)
+        f = np.sum(np.transpose(w) @ psi) / (np.sum(psi+ 10 ** -10))
+        return f
+
+
+class MyDmp:
+    def __init__(self, y0, g, tau, alpha_z, beta_z, alpha_x, n_kernel, function_approximators=None):
+        
+        self.dim = y0.size
+        self.y0 = y0
+        self.g = g
+        self.tau = tau
+        self.alpha_z = alpha_z
+        self.beta_z = beta_z
+        self.alpha_x = alpha_x
+        
+        
+        self.function_approximators = []
+        
+        for i in range(0, self.dim):
+            self.function_approximators.append(FunctionApproximatorKarlssen(n_kernel, alpha_x))
+        
+    
+    def train(self,trajectory):
+        
+        self.p = trajectory.ts_.size       
+        
+        
+        self.f_target = np.power(self.tau,2)*trajectory.ydds_ - self.alpha_z*(self.beta_z*(self.g-trajectory.ys_) -self.tau*trajectory.yds_)
+        self.phase_system = ExponentialSystem(self.tau, 1,0,1)
+        
+        ### X integration matlab code style
+        
+        # self.xs = np.zeros((self.p,1))
+        # self.xs[0] = 1
+        
+        # for t in range(1, self.p):
+        #     dt = 1/250
+        #     xdot = -self.alpha_x*self.xs[t-1]/self.tau
+        #     self.xs[t] = self.xs[t-1] + xdot*dt
+        
+        # ## X integration, a more modern style
+        # self.xs = np.zeros((self.p,1))
+        # self.xds = np.zeros((self.p,1))
+        
+        # (self.xs[0],self.xds[0]) = self.phase_system.integrateStart()
+        
+        # for t in range(1, self.p):
+        #     dt = 1/250
+        #     (self.xs[t],self.xds[t]) = self.phase_system.integrateStep(dt,self.xs[t-1])
+        
+        ## X integration, Analytical solution
+        (self.xs,self.xds) = self.phase_system.analyticalSolution(trajectory.ts_)
+        
+        
+        self.s = self.xs*(self.g-self.y0)
+        
+        
+        for dd in range(0, self.dim):
+            targets = self.f_target[:,dd][:,np.newaxis]
+            ss = self.s[:,dd][:,np.newaxis]
+            self.function_approximators[dd].train(self.xs,targets,ss)
+
+    def integrateStart(self):
+        (self.x,self.xd) = self.phase_system.integrateStart()
+        self.ydot = np.zeros(self.dim)
+        self.y = self.y0
+        self.yddot = np.zeros(self.dim)
+        self.t = 0
+        
+        return (self.x,self.y,self.ydot,self.yddot)
+        
+    def integrateStep(self, t):
+        self.dt = t - self.t
+        self.t = t
+        
+        self.dmp2acc()
+        self.ydot = self.ydot + self.yddot*self.dt
+        self.y = self.y + self.ydot*self.dt
+        (self.x,self.xd) = self.phase_system.integrateStep(self.dt,self.x)
+        
+        return (self.x,self.y,self.ydot,self.yddot)
+        
+    def dmp2acc(self):
+        self.f = np.zeros(self.dim)
+        for dd in range(0, self.dim):
+            self.f[dd] = self.function_approximators[dd].predict(self.x)
+            self.f[dd] = self.f[dd] * self.x * (self.g-self.y0)[dd]
+        
+        self.yddot = 1/(self.tau ** 2) * (self.alpha_z*(self.beta_z*(self.g-self.y) - self.tau*self.ydot) + self.f)
+        
+#%%
+
+# myclass = FunctionApproximatorKarlssen(15, 1)
+# myclass.train(x,f_target,s)
+
+
+#%%
+
+alpha_e = 5
+alpha_z = 25
+alpha_x = 1
+beta_z = 6.25
+
+n_kernel = 15
+
+tau = trajectory.ts_[-1]/3
+y0 = trajectory.ys_[0,:]
+g = trajectory.ys_[-1,:]
+dmp = MyDmp(y0, g, tau, alpha_z, beta_z, alpha_x, n_kernel)
+dmp.train(trajectory)
+
+
+#%%
+
+time = trajectory.ts_[-1]
+dt = 1/250
+n_steps = int(time/dt)
+ts = np.linspace(0,time,n_steps)
+
+xs = np.zeros(ts.size)
+ys = np.zeros((ts.size, dmp.dim))
+ydots = np.zeros((ts.size, dmp.dim))
+yddots = np.zeros((ts.size, dmp.dim))
+
+(xs[0], ys[0], ydots[0], yddots[0]) = dmp.integrateStart()
+t = 0
+
+#%%
+
+for i in range(1, ts.size):
+    (xs[i], ys[i], ydots[i], yddots[i]) = dmp.integrateStep(ts[i])
+
+#%%
+
+
+fig = plt.figure(1)
+axs = [ fig.add_subplot(221), fig.add_subplot(222), fig.add_subplot(223), fig.add_subplot(224)]
+for i in range(0,len(axs)):
+    axs[i].plot(trajectory.ts_, trajectory.ys_[:,i])
+    axs[i].plot(ts, ys[:,i])
+    
+
+#%%
+plt.plot(trajectory.ts_, trajectory.ys_[:,0])
+plt.plot(ts, ys[:,0])
+

@@ -6,11 +6,6 @@ import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 
-from dmpbbo.dmp.dmp_plotting import *
-from dmpbbo.dmp.Dmp import *
-from dmpbbo.dmp.Trajectory import *
-from dmpbbo.functionapproximators.FunctionApproximatorLWR import *
-
 
 def traj2w(y_demo, dt, tau, c, d, alpha_z, beta_z, alpha_x, n_kernel):
     p = len(y_demo)
