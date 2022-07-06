@@ -1,0 +1,6 @@
+<launch>
+    
+    <node name="dmpkarlssen_bringup" pkg="lfd_dmp" type="dmpkarlssen_bringup.py" output="screen">
+    </node>
+
+</launch>
