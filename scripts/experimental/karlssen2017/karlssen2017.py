@@ -57,7 +57,7 @@ class FunctionApproximatorKarlssen:
 
 
 class MyDmp:
-    def __init__(self, y0, g, tau, alpha_z, beta_z, alpha_x, n_kernel, function_approximators=None):
+    def __init__(self, y0, g, tau, alpha_z, beta_z, alpha_x, n_kernel, kc, alpha_e):
         
         self.dim = y0.size
         self.y0 = y0
@@ -66,6 +66,9 @@ class MyDmp:
         self.alpha_z = alpha_z
         self.beta_z = beta_z
         self.alpha_x = alpha_x
+        
+        self.kc = kc
+        self.alpha_e = alpha_e
         
         
         self.function_approximators = []
@@ -80,7 +83,7 @@ class MyDmp:
         
         
         self.f_target = np.power(self.tau,2)*trajectory.ydds_ - self.alpha_z*(self.beta_z*(self.g-trajectory.ys_) -self.tau*trajectory.yds_)
-        self.phase_system = ExponentialSystem(self.tau, 1,0,1)
+        self.phase_system = ExponentialSystem(self.tau, 1,0,self.alpha_x)
         
         ### X integration matlab code style
         
@@ -141,6 +144,55 @@ class MyDmp:
             self.f[dd] = self.f[dd] * self.x * (self.g-self.y0)[dd]
         
         self.yddot = 1/(self.tau ** 2) * (self.alpha_z*(self.beta_z*(self.g-self.y) - self.tau*self.ydot) + self.f)
+    
+    
+    def controlStart(self):
+        (self.x,self.xd) = self.phase_system.integrateStart()
+        self.ydot = np.zeros(self.dim)
+        self.yddot = np.zeros(self.dim)
+        self.y = self.y0
+        self.t = 0
+        self.ya = self.y0
+        self.ya_dot = np.zeros(self.dim)
+        self.ya_ddot = np.zeros(self.dim)
+        self.e = np.zeros(self.dim)
+        
+        self.z = np.zeros(self.dim)
+        
+        return (self.x, self.y, self.ya)
+    
+    def controlStep(self,t,ya_new,ya_dot_new):
+        self.dt = t - self.t
+        self.t = t
+        self.ya_dot = ya_dot_new
+        
+        self.tau_adapt = self.tau * (1+(self.kc*(self.e**2)))[0]
+        self.dmp2vel_acc_ss()
+        self.get_ya_ddot_lowgain_ff()
+        self.y = self.y + self.ydot*self.dt
+        self.e_dot = self.alpha_e*(ya_new-self.y-self.e)
+        self.e = self.e + self.e_dot*self.dt
+        self.phase_system.set_tau(self.tau_adapt)
+        (self.x,self.xd) = self.phase_system.integrateStep(self.dt,self.x)
+        self.ya = ya_new
+        
+        return (self.x, self.y, self.ya)
+
+    def get_ya_ddot_lowgain_ff(self):
+        kp = 25
+        kv = 10
+        self.ya_ddot = kp*(self.y-self.ya) + kv*(self.ydot-self.ya_dot) + self.yddot
+    
+    def dmp2vel_acc_ss(self):
+        self.f = np.zeros(self.dim)
+        for dd in range(0, self.dim):
+            self.f[dd] = self.function_approximators[dd].predict(self.x)
+            self.f[dd] = self.f[dd] * self.x * (self.g-self.y0)[dd]
+        
+        self.z_dot = 1/self.tau_adapt * (self.alpha_z*(self.beta_z*(self.g-self.y) - self.z) + self.f)
+        self.z = self.z + self.dt*self.z_dot
+        self.ydot = self.z/self.tau_adapt
+        self.yddot = (self.z_dot*self.tau_adapt-self.tau*self.z*2*self.kc*self.e*(self.alpha_e*(self.ya-self.y-self.e)))/self.tau_adapt**2
         
 #%%
 
@@ -154,22 +206,23 @@ alpha_e = 5
 alpha_z = 25
 alpha_x = 1
 beta_z = 6.25
+kc = 10000
 
 n_kernel = 15
 
 tau = trajectory.ts_[-1]/3
 y0 = trajectory.ys_[0,:]
 g = trajectory.ys_[-1,:]
-dmp = MyDmp(y0, g, tau, alpha_z, beta_z, alpha_x, n_kernel)
+dmp = MyDmp(y0, g, tau, alpha_z, beta_z, alpha_x, n_kernel,kc,alpha_e)
 dmp.train(trajectory)
 
 
 #%%
 
-time = trajectory.ts_[-1]
+time = 2 * trajectory.ts_[-1]
 dt = 1/250
 n_steps = int(time/dt)
-ts = np.linspace(0,time,n_steps)
+ts = np.linspace(0,time-dt,n_steps)
 
 xs = np.zeros(ts.size)
 ys = np.zeros((ts.size, dmp.dim))
@@ -178,6 +231,7 @@ yddots = np.zeros((ts.size, dmp.dim))
 
 (xs[0], ys[0], ydots[0], yddots[0]) = dmp.integrateStart()
 t = 0
+
 
 #%%
 
@@ -198,3 +252,48 @@ for i in range(0,len(axs)):
 plt.plot(trajectory.ts_, trajectory.ys_[:,0])
 plt.plot(ts, ys[:,0])
 
+y_unpert = ys
+
+
+
+#%%
+
+time = 2 * trajectory.ts_[-1]
+dt = 1/250
+n_steps = int(time/dt)
+ts = np.linspace(0,time-dt,n_steps)
+
+xs = np.zeros(ts.size)
+ys = np.zeros((ts.size, dmp.dim))
+yas = np.zeros((ts.size, dmp.dim))
+
+(xs[0], ys[0], yas[0]) = dmp.controlStart()
+t = 0
+
+#%%
+
+
+ya = dmp.y0
+ya_dot = np.zeros(dmp.dim)
+
+        
+# t = 0
+for t in range(1, ts.size):
+    # t = t+1
+    #Create our fake "actual" trajectory and basically input ya and ya_dot to the main algorithm
+    ya_dot = ya_dot + dmp.ya_ddot*dt
+    if (t>499 and t<3749):
+        # ya_ddot_perturbation = -25*ya_dot
+        ya_ddot_perturbation = (.30-ya_dot)*25
+        ya_dot = ya_dot + ya_ddot_perturbation*dt
+    
+    ya = ya + ya_dot*dt
+    
+    (xs[t], ys[t], yas[t]) = dmp.controlStep(ts[t], ya, ya_dot)
+    
+    
+#%%
+
+plt.plot(ts, y_unpert[:,0])
+plt.plot(ts, ys[:,0])
+plt.plot(ts, yas[:,0])

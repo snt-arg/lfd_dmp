@@ -83,7 +83,7 @@ d = np.power(np.diff(c,axis=0)*0.55,2)
 d = 1/np.append(d, d[-1])[:,np.newaxis]
 
 ## Demonstration Trajectory, 1 DOF
-dt = 1/250;
+dt = 1/250
 n_steps = int(10/dt)
 t = np.linspace(0,10,n_steps)[:,np.newaxis]
 traj = np.fmax(0, -np.sin(2*np.pi*t[0:1000]/2.5))
@@ -133,6 +133,9 @@ ya_ddot_log = np.zeros(y.shape)
 y_ddot_log = np.zeros(y.shape)
 yddot = 0
 ydot = 0
+# tau_adapt = tau * (1+(kc*(e**2)))
+
+ya_ddot = 0
 
 #%%
 
@@ -140,25 +143,30 @@ ydot = 0
 
 for t in range(1, 2*p):
     # t = t + 1
-    tau_adapt = tau * (1+(kc*(e**2)))
-    ya_ddot = get_ya_ddot_lowgain_ff(ya[t-1], ya_dot, y[t-1], ydot, yddot)
-    (ydot , yddot) = dmp2vel_acc_ss(y0, y[t-1], g, tau_adapt, w, x, dt, alpha_e, c, d, alpha_z, beta_z, ya[t-1], e, kc, tau)
-    y[t] = y[t-1] + ydot*dt
-    xdot = -alpha_x*x/tau_adapt
-    x = x + xdot*dt
     
+    #Create our fake "actual" trajectory and basically input ya and ya_dot to the main algorithm
     ya_dot = ya_dot + ya_ddot*dt
     if (t>499 and t<749):
         ya_ddot_perturbation = -25*ya_dot
         ya_dot = ya_dot + ya_ddot_perturbation*dt
     
     ya[t] = ya[t-1] + ya_dot*dt
-    e_dot = alpha_e*(ya[t]-y[t]-e)
-    e = e + e_dot*dt
     ya_ddot_log[t] = ya_ddot
     y_ddot_log[t] = yddot
     
-
+    
+    
+    tau_adapt = tau * (1+(kc*(e**2)))
+    (ydot , yddot) = dmp2vel_acc_ss(y0, y[t-1], g, tau_adapt, w, x, dt, alpha_e, c, d, alpha_z, beta_z, ya[t-1], e, kc, tau)
+    y[t] = y[t-1] + ydot*dt
+    e_dot = alpha_e*(ya[t]-y[t]-e)
+    e = e + e_dot*dt
+    ya_ddot = get_ya_ddot_lowgain_ff(ya[t-1], ya_dot, y[t-1], ydot, yddot)
+    
+    xdot = -alpha_x*x/tau_adapt
+    x = x + xdot*dt
+    
+#%%
 t = np.cumsum(dt*np.ones(y.shape))
 
 #%%
