@@ -4,7 +4,7 @@ import numpy as np
 from dmpbbo.dmp.Dmp import *
 from dmpbbo.dynamicalsystems.ExponentialSystem import ExponentialSystem
 
-class FunctionApproximatorKarlssen:
+class FunctionApproximatorkarlsson:
     def __init__(self, n_kernel, alpha_x):
         
         self.n_kernel = n_kernel
@@ -66,9 +66,9 @@ class FunctionApproximatorKarlssen:
         return f # scalar
 
 
-class DMPKarlssen:
+class DMPkarlsson:
     
-    def __init__(self, y0, g, tau, alpha_z, beta_z, alpha_x, n_kernel, kc, alpha_e):
+    def __init__(self, y0, g, tau, alpha_z, beta_z, alpha_x, n_kernel, kc, alpha_e, kp, kv):
         
         # number of DOFs, int
         self.dim = y0.size
@@ -96,27 +96,24 @@ class DMPKarlssen:
         self.kc = kc
         self.alpha_e = alpha_e
         
-        # Initialize Karlssen function approximators as many as the dimension value
+        # Control Params
+        self.kp = kp
+        self.kv = kv
+
+        # Initialize karlsson function approximators as many as the dimension value
         self.function_approximators = []
         
         for i in range(0, self.dim):
-            self.function_approximators.append(FunctionApproximatorKarlssen(self.n_kernel, self.alpha_x))
+            self.function_approximators.append(FunctionApproximatorkarlsson(self.n_kernel, self.alpha_x))
 
     @classmethod
-    def from_traj(cls,trajectory):
-        
-        alpha_e = 5
-        alpha_z = 25
-        alpha_x = 1
-        beta_z = 6.25
-        kc = 10000
-
-        n_kernel = 15
+    def from_traj(cls,trajectory, alpha_e, alpha_z, alpha_x,
+                beta_z, kc, kp, kv, n_kernel):
 
         tau = trajectory.ts_[-1]
         y0 = trajectory.ys_[0,:]
         g = trajectory.ys_[-1,:]
-        dmp = cls(y0, g, tau, alpha_z, beta_z, alpha_x, n_kernel,kc,alpha_e)
+        dmp = cls(y0, g, tau, alpha_z, beta_z, alpha_x, n_kernel,kc,alpha_e, kp, kv)
         dmp.train(trajectory)
       
         return dmp
@@ -167,12 +164,10 @@ class DMPKarlssen:
             ss = self.s[:,dd][:,np.newaxis]
             self.function_approximators[dd].train(self.xs,targets,ss)
 
-    def integrateStart(self, tau):
+    def integrateStart(self):
         """
         Start integration of DMP equation without perturbation
         """
-
-        self.set_tau(tau)
 
         # reset the phase system, (:,) and (:,)
         (self.x,self.xd) = self.phase_system.integrateStart()
@@ -192,6 +187,9 @@ class DMPKarlssen:
         # Again I have no idea why. It's according to the paper
         self.tau = tau/3
         self.phase_system.set_tau(self.tau)
+
+    def get_tau(self):
+        return (self.tau * 3)
         
     def set_initial_state(self, y0):
         self.y0 = y0
@@ -216,16 +214,27 @@ class DMPKarlssen:
         (self.x,self.xd) = self.phase_system.integrateStep(self.dt,self.x)
         
         return (self.x,self.y,self.yd,self.ydd)
-        
-    def dmp2acc(self):
-        # Predict f
+    
+    def predict_f(self):
         self.f = np.zeros(self.dim)
         for i in range(0, self.dim):
             self.f[i] = self.function_approximators[i].predict(self.x)
             self.f[i] = self.f[i] * self.x * (self.g-self.y0)[i]
-        
+
+    def dmp2acc(self):
+        self.predict_f()
         self.ydd = 1/(self.tau ** 2) * (self.alpha_z*(self.beta_z*(self.g-self.y) - self.tau*self.yd) + self.f)
+
+    def get_ydd_a_lowgain_ff(self):
+        self.ydd_a = self.kp*(self.y-self.y_a) + self.kv*(self.yd-self.yd_a) + self.ydd
     
+    def dmp2vel_acc_ss(self):
+        self.predict_f()
+        self.z_dot = 1/self.tau_adapt * (self.alpha_z*(self.beta_z*(self.g-self.y) - self.z) + self.f)
+        self.z = self.z + self.dt*self.z_dot
+        self.yd = self.z/self.tau_adapt
+        self.ydd = (self.z_dot*self.tau_adapt-self.tau*self.z*2*self.kc*self.e*(self.alpha_e*(self.y_a-self.y-self.e)))/self.tau_adapt**2
+
     
     def controlStart(self, tau):
        
@@ -289,23 +298,7 @@ class DMPKarlssen:
         (self.x,self.xd) = self.phase_system.integrateStep(self.dt,self.x)
         self.y_a = y_a_new
         
-        return (self.x, self.y, self.y_a)
-
-    def get_ydd_a_lowgain_ff(self):
-        kp = 25
-        kv = 10
-        self.ydd_a = kp*(self.y-self.y_a) + kv*(self.yd-self.yd_a) + self.ydd
-    
-    def dmp2vel_acc_ss(self):
-        self.f = np.zeros(self.dim)
-        for dd in range(0, self.dim):
-            self.f[dd] = self.function_approximators[dd].predict(self.x)
-            self.f[dd] = self.f[dd] * self.x * (self.g-self.y0)[dd]
-        
-        self.z_dot = 1/self.tau_adapt * (self.alpha_z*(self.beta_z*(self.g-self.y) - self.z) + self.f)
-        self.z = self.z + self.dt*self.z_dot
-        self.yd = self.z/self.tau_adapt
-        self.ydd = (self.z_dot*self.tau_adapt-self.tau*self.z*2*self.kc*self.e*(self.alpha_e*(self.y_a-self.y-self.e)))/self.tau_adapt**2
+        return (self.ydd_a, self.x, self.y, self.y_a)
 
     def statesAsTrajectory(self,ts, ys, yds, ydds):
         return Trajectory(ts,ys,yds,ydds)

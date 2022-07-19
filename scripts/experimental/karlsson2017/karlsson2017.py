@@ -1,6 +1,6 @@
 
 #%%
-from lfd_dmp.karlssen2017 import DMPKarlssen
+from lfd_dmp.karlsson2017 import DMPkarlsson
 
 
 #%%
@@ -16,7 +16,7 @@ n_kernel = 15
 tau = trajectory.ts_[-1]
 y0 = trajectory.ys_[0,:]
 g = trajectory.ys_[-1,:]
-dmp = DMPKarlssen(y0, g, tau, alpha_z, beta_z, alpha_x, n_kernel,kc,alpha_e)
+dmp = DMPkarlsson(y0, g, tau, alpha_z, beta_z, alpha_x, n_kernel,kc,alpha_e)
 dmp.train(trajectory)
 
 

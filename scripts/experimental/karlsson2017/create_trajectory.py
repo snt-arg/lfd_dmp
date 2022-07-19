@@ -7,7 +7,7 @@ Created on Thu Jun 30 10:49:57 2022
 """
 
 
-#############################  Create Trajectory from Karlssen2017 Matlab code
+#############################  Create Trajectory from karlsson2017 Matlab code
 
 #%%
 
