@@ -50,6 +50,9 @@ class DMPWrapper:
     def plan(self, ts):
         pass
 
+    def plan_init(self, name):
+        self.dmp = self.trained_dmps[name]
+
     def cb_plan_dmp(self, req : PlanLFDRequest):
         self.dmp = self.trained_dmps[req.name]
         start = req.start.positions

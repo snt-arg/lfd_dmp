@@ -21,8 +21,8 @@ class DMPkarlssonService(DMPWrapper):
         self.alpha_x = 1
         self.beta_z = 6.25
         self.kc = 10000
-        self.kp = 25
-        self.kv = 10
+        self.kp = 3000
+        self.kv = 2 * np.sqrt(self.kp)
         self.n_kernel = 15
 
     def train(self, trajectory):

@@ -236,9 +236,7 @@ class DMPkarlsson:
         self.ydd = (self.z_dot*self.tau_adapt-self.tau*self.z*2*self.kc*self.e*(self.alpha_e*(self.y_a-self.y-self.e)))/self.tau_adapt**2
 
     
-    def controlStart(self, tau):
-       
-        self.set_tau(tau)
+    def controlStart(self):
 
         # reset the phase system, (:,) and (:,)
         (self.x,self.xd) = self.phase_system.integrateStart()
