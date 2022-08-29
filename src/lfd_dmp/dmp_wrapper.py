@@ -59,8 +59,8 @@ class DMPWrapper:
             self.dmp.set_attractor_state(np.array(goal))
 
     def cb_plan_dmp(self, req : PlanLFDRequest):
-        self.init_dmp(req.name, req.start.positions, req.goal.positions, req.tau)
-        tau = req.tau
+        self.init_dmp(req.plan.name, req.plan.start.positions, req.plan.goal.positions, req.plan.tau)
+        tau = req.plan.tau
 
         n_time_steps = int(np.ceil(tau/self.dt) + 1)
         ts = np.linspace(0,tau,n_time_steps)

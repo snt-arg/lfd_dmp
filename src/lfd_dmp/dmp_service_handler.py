@@ -92,12 +92,12 @@ class DMPService:
     def cb_plan_dmp(self, req : PlanLFDRequest):
         rospy.loginfo("entered plan callback")
 
-        self.activate_dmp(self.trained_dmps[req.name].dmp_list)
+        self.activate_dmp(self.trained_dmps[req.plan.name].dmp_list)
 
 
-        start = req.start.positions
-        goal = req.goal.positions
-        tau = self.trained_dmps[req.name].tau
+        start = req.plan.start.positions
+        goal = req.plan.goal.positions
+        tau = self.trained_dmps[req.plan.name].tau
         self.seg_length = tau
 
         #print(start)
