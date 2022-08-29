@@ -33,7 +33,7 @@ class DMPWrapper:
         return Trajectory(ts, path)
 
     def train(self, trajectory):
-        pass
+        raise NotImplementedError()
 
     def cb_train_demonstration(self, req: TrainDemonstrationRequest):
         self.joint_names = req.demonstration.joint_trajectory.joint_names
@@ -48,20 +48,19 @@ class DMPWrapper:
         return TrainDemonstrationResponse(True)
 
     def plan(self, ts):
-        pass
+        raise NotImplementedError()
 
-    def plan_init(self, name):
+    def init_dmp(self, name, start, goal, tau):
         self.dmp = self.trained_dmps[name]
+        self.dmp.set_tau(tau)
+        if len(start) != 0:
+            self.dmp.set_initial_state(np.array(start))
+        if len(goal) != 0:
+            self.dmp.set_attractor_state(np.array(goal))
 
     def cb_plan_dmp(self, req : PlanLFDRequest):
-        self.dmp = self.trained_dmps[req.name]
-        start = req.start.positions
-        goal = req.goal.positions
+        self.init_dmp(req.name, req.start.positions, req.goal.positions, req.tau)
         tau = req.tau
-
-        self.dmp.set_tau(tau)
-        self.dmp.set_initial_state(np.array(start))
-        self.dmp.set_attractor_state(np.array(goal))
 
         n_time_steps = int(np.ceil(tau/self.dt) + 1)
         ts = np.linspace(0,tau,n_time_steps)
