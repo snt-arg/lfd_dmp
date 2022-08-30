@@ -90,7 +90,7 @@ class DMPkarlssonController:
             self.sub_controller = rospy.Subscriber("/joint_states", JointState, self.cb_control_loop, queue_size=1)
     
     def check_target_reached(self):
-        if self.x < 0.001:
+        if self.x < 0.003:
             self.dmp_service.set_goal_reached()
 
     def cb_control_loop(self, statemsg : JointState):
