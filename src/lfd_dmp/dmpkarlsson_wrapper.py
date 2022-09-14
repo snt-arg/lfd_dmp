@@ -3,7 +3,7 @@ import rospy
 import actionlib
 import numpy as np
 
-from std_msgs.msg import Float64MultiArray
+from std_msgs.msg import Float64MultiArray, Float64
 from sensor_msgs.msg import JointState
 
 from lfd_dmp.karlsson2017 import DMPkarlsson
@@ -80,6 +80,14 @@ class DMPkarlssonController:
         
         self.dmp_service = dmp_service
         self.pub_ydd = rospy.Publisher("ydd_control", Float64MultiArray, queue_size=1)
+
+
+        self.pub_test_y = rospy.Publisher("test_y", Float64MultiArray, queue_size=1)
+        self.pub_test_yd = rospy.Publisher("test_yd", Float64MultiArray, queue_size=1)
+        self.pub_test_ydd = rospy.Publisher("test_ydd", Float64MultiArray, queue_size=1)
+
+        self.pub_test_tau = rospy.Publisher("test_tau", Float64, queue_size=1)
+        
         self.sub_controller = None
         self.x = 1
     
@@ -95,8 +103,22 @@ class DMPkarlssonController:
 
     def cb_control_loop(self, statemsg : JointState):
         t = rospy.get_time() - self.t_ref
-        ydd_a,self.x,_,_ = self.dmp_service.dmp.controlStep(t,statemsg.position,statemsg.velocity)
+        ydd_a,self.x,test_y,test_yd,test_ydd,test_tau = self.dmp_service.dmp.controlStep(t,statemsg.position,statemsg.velocity)
         u = Float64MultiArray()
         u.data = ydd_a
         self.pub_ydd.publish(u)
+
+        tt = Float64MultiArray()
+
+        tt.data = test_y
+        self.pub_test_y.publish(tt)
+
+        tt.data = test_yd
+        self.pub_test_yd.publish(tt)
+
+        tt.data = test_ydd
+        self.pub_test_ydd.publish(tt)
+
+        self.pub_test_tau.publish(test_tau)
+
         self.check_target_reached()

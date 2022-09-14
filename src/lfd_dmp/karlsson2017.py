@@ -296,7 +296,7 @@ class DMPkarlsson:
         (self.x,self.xd) = self.phase_system.integrateStep(self.dt,self.x)
         self.y_a = y_a_new
         
-        return (self.ydd_a, self.x, self.y, self.y_a)
+        return (self.ydd_a, self.x, self.y, self.yd, self.ydd, self.tau_adapt)
 
     def statesAsTrajectory(self,ts, ys, yds, ydds):
         return Trajectory(ts,ys,yds,ydds)
