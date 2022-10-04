@@ -68,7 +68,7 @@ class FunctionApproximatorkarlsson:
 
 class DMPkarlsson:
     
-    def __init__(self, y0, g, tau, alpha_z, beta_z, alpha_x, n_kernel, kc, alpha_e, kp, kv):
+    def __init__(self, y0, g, tau, alpha_z, beta_z, alpha_x, n_kernel, kc, alpha_e, kp, kv, ki, ki_limMinInt, ki_limMaxInt):
         
         # number of DOFs, int
         self.dim = y0.size
@@ -106,14 +106,28 @@ class DMPkarlsson:
         for i in range(0, self.dim):
             self.function_approximators.append(FunctionApproximatorkarlsson(self.n_kernel, self.alpha_x))
 
+
+        ##### Experimental
+
+        self.ki = ki
+        self.limMaxInt = ki_limMaxInt
+        self.limMinInt = ki_limMinInt
+
+        self.prev_error = 0
+        self.integrator = 0
+
+        # self.differentiator = 0
+        # self.prev_measure = 0
+
+
     @classmethod
     def from_traj(cls,trajectory, alpha_e, alpha_z, alpha_x,
-                beta_z, kc, kp, kv, n_kernel):
+                beta_z, kc, kp, kv, n_kernel, ki, ki_limMinInt, ki_limMaxInt):
 
         tau = trajectory.ts_[-1]
         y0 = trajectory.ys_[0,:]
         g = trajectory.ys_[-1,:]
-        dmp = cls(y0, g, tau, alpha_z, beta_z, alpha_x, n_kernel,kc,alpha_e, kp, kv)
+        dmp = cls(y0, g, tau, alpha_z, beta_z, alpha_x, n_kernel,kc,alpha_e, kp, kv, ki, ki_limMinInt, ki_limMaxInt)
         dmp.train(trajectory)
       
         return dmp
@@ -226,7 +240,19 @@ class DMPkarlsson:
         self.ydd = 1/(self.tau ** 2) * (self.alpha_z*(self.beta_z*(self.g-self.y) - self.tau*self.yd) + self.f)
 
     def get_ydd_a_lowgain_ff(self):
-        self.ydd_a = self.kp*(self.y-self.y_a) + self.kv*(self.yd-self.yd_a) + self.ydd
+        pos_error = self.y-self.y_a
+        # vel_error = self.yd-self.yd_a
+        
+        self.integrator = self.integrator + self.ki * (pos_error + self.prev_error)
+
+        np.clip(self.integrator, self.limMinInt, self.limMaxInt)
+
+        # self.differentiator = (2*self.kv*vel_error + (2*0.02 - 0.01)*self.differentiator)/(2*0.02+0.01)
+
+        self.ydd_a = self.kp*pos_error + self.kv*(self.yd-self.yd_a) + self.ydd + self.integrator
+
+        self.prev_error = pos_error
+
     
     def dmp2vel_acc_ss(self):
         self.predict_f()
@@ -278,7 +304,10 @@ class DMPkarlsson:
         
         # Calculate the adapted value of Tau based on the last error value
         # (Return the maximum tau value along DOFs in order to make sure system is matched with the slowest DOF)
-        self.tau_adapt = np.amax(self.tau * (1+(self.kc*(self.e**2))))
+        # Choose tau based on only a subset of all joints --> customized for hebi at the moment
+        selective_taus = (self.tau * (1+(self.kc*(self.e**2))))[0:3]
+
+        self.tau_adapt = np.amax(selective_taus)
 
         # Calculate yd and ydd based on the last perturbations happened
         self.dmp2vel_acc_ss()
