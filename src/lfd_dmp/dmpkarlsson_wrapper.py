@@ -22,9 +22,12 @@ class DMPkarlssonService(DMPWrapper):
         self.alpha_z = 25
         self.alpha_x = 1
         self.beta_z = 6.25
-        self.kc = 10000
-        self.kp = 3000
-        self.kv = 2 * np.sqrt(self.kp)
+        self.kc = 0
+        self.kp = np.array([200,300,300,50])
+        self.kv = 15
+        self.ki = 10
+        self.ki_limMaxInt = 0.2
+        self.ki_limMinInt = -0.2
         self.n_kernel = 15
 
         self.controller = DMPkarlssonController(self)
@@ -57,7 +60,7 @@ class DMPkarlssonService(DMPWrapper):
     def train(self, trajectory):
         dmp = DMPkarlsson.from_traj(trajectory, self.alpha_e, self.alpha_z,
                                     self.alpha_x, self.beta_z, self.kc, self.kp, 
-                                    self.kv, self.n_kernel)
+                                    self.kv, self.n_kernel, self.ki, self.ki_limMinInt, self.ki_limMaxInt)
         return dmp
 
     def plan(self, ts):
