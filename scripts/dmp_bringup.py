@@ -18,6 +18,10 @@ if __name__ == '__main__':
     rospy.init_node('dmp_tutorial_node')
     
     dmp_method = rospy.get_param("~dmp_method")
+    try:
+        dmp_config = rospy.get_param("~dmpconfig")
+    except:
+        rospy.logwarn("No Config file found. Continuing...")
 
     if dmp_method == 'dmpros':
         rospy.loginfo("Executing DMP ROS Method")
@@ -27,7 +31,7 @@ if __name__ == '__main__':
         dmp_service = DMPBBOService()
     elif dmp_method == 'dmpkarlsson':
         rospy.loginfo("Executing DMP Karlsson Method")
-        dmp_service = DMPkarlssonService()
+        dmp_service = DMPkarlssonService(dmp_config)
     
     rospy.spin()
 

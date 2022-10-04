@@ -1,6 +1,7 @@
 <launch>
     
     <arg name="dmp_method" default="dmpros"/>
+    <arg name="robot_name" default="hebi"/>
 
     <group if="$(eval dmp_method == 'dmpros')">
         <include file="$(find dmp)/launch/dmp.launch"/>
@@ -18,6 +19,7 @@
     <group if="$(eval dmp_method == 'dmpkarlsson')">
         <node name="dmp_bringup" pkg="lfd_dmp" type="dmp_bringup.py" output="screen">
             <param name="dmp_method" value="$(arg dmp_method)"/>
+            <rosparam command="load" file="$(find lfd_dmp)/config/$(arg dmp_method)-$(arg robot_name).yaml" />
         </node>
     </group>
 

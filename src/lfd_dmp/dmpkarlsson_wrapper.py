@@ -15,20 +15,20 @@ from lfd_interface.msg import ControlLFDAction, ControlLFDResult
 
 class DMPkarlssonService(DMPWrapper):
 
-    def __init__(self):
+    def __init__(self, dmpconfig):
         super().__init__()
 
-        self.alpha_e = 5
-        self.alpha_z = 25
-        self.alpha_x = 1
-        self.beta_z = 6.25
-        self.kc = 0
-        self.kp = np.array([200,300,300,50])
-        self.kv = 15
-        self.ki = 10
-        self.ki_limMaxInt = 0.2
-        self.ki_limMinInt = -0.2
-        self.n_kernel = 15
+        self.alpha_e = dmpconfig["alpha_e"]
+        self.alpha_z = dmpconfig["alpha_z"]
+        self.alpha_x = dmpconfig["alpha_x"]
+        self.beta_z = dmpconfig["beta_z"]
+        self.kc = np.array(dmpconfig["kc"])
+        self.kp = np.array(dmpconfig["kp"])
+        self.kv = np.array(dmpconfig["kv"])
+        self.ki = np.array(dmpconfig["ki"])
+        self.ki_limMaxInt = np.array(dmpconfig["ki_limMaxInt"])
+        self.ki_limMinInt = np.array(dmpconfig["ki_limMinInt"])
+        self.n_kernel = dmpconfig["n_kernel"]
 
         self.controller = DMPkarlssonController(self)
 
