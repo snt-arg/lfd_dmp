@@ -3,7 +3,7 @@ dmpconfig: {
   alpha_z: 25,
   alpha_x: 1,
   beta_z: 6.25,
-  kc: 1000,
+  kc: 0,
   kp: 100,
   kv: 15,
   ki: 1,

@@ -10,6 +10,8 @@ project(lfd_dmp)
 find_package(catkin REQUIRED COMPONENTS
   rospy
   lfd_interface
+  std_msgs
+  message_generation
 )
 
 ## System dependencies are found with CMake's conventions
@@ -46,11 +48,10 @@ catkin_python_setup()
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Message1.msg
-#   Message2.msg
-# )
+add_message_files(
+  FILES
+  DMPDataMsg.msg
+)
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -67,10 +68,10 @@ catkin_python_setup()
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   std_msgs  # Or other packages containing msgs
-# )
+generate_messages(
+  DEPENDENCIES
+  std_msgs  # Or other packages containing msgs
+)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -104,7 +105,7 @@ catkin_python_setup()
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES dmp_playground
-#  CATKIN_DEPENDS rospy
+  CATKIN_DEPENDS rospy message_runtime
 #  DEPENDS system_lib
 )
 

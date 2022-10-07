@@ -4,6 +4,9 @@ import numpy as np
 from dmpbbo.dmp.Dmp import *
 from dmpbbo.dynamicalsystems.ExponentialSystem import ExponentialSystem
 
+from arm_controllers.msg import ControlDataMsg
+from lfd_dmp.msg import DMPDataMsg
+
 class FunctionApproximatorkarlsson:
     def __init__(self, n_kernel, alpha_x):
         
@@ -106,6 +109,10 @@ class DMPkarlsson:
         for i in range(0, self.dim):
             self.function_approximators.append(FunctionApproximatorkarlsson(self.n_kernel, self.alpha_x))
 
+
+        # Message containers
+        self.control_data = ControlDataMsg()
+        self.dmp_data = DMPDataMsg()
 
         ##### Experimental
 
@@ -313,7 +320,12 @@ class DMPkarlsson:
         self.dmp2vel_acc_ss()
 
         # Calculate new y_a_dd command based on last position, the new velocity feedback, and calculated dmp yd and ydd
-        self.get_ydd_a_lowgain_ff()
+        
+        self.control_data.y_d.data = self.y
+        self.control_data.yd_d.data = self.yd
+        self.control_data.ydd_d.data = self.ydd
+
+        # self.get_ydd_a_lowgain_ff()
 
         self.y = self.y + self.yd*self.dt
         self.e_dot = self.alpha_e*(y_a_new-self.y-self.e)
@@ -324,8 +336,16 @@ class DMPkarlsson:
         
         (self.x,self.xd) = self.phase_system.integrateStep(self.dt,self.x)
         self.y_a = y_a_new
+
+        self.dmp_data.tau = self.tau_adapt
+        self.dmp_data.x.data = self.x
+        self.dmp_data.e.data = self.e
+        self.dmp_data.e_dot.data = self.e_dot
+        self.dmp_data.z.data = self.z
+        self.dmp_data.z_dot.data = self.z_dot
+        self.dmp_data.f.data = self.f
         
-        return (self.ydd_a, self.x, self.y, self.yd, self.ydd, self.tau_adapt)
+        return (self.dmp_data,self.control_data)
 
     def statesAsTrajectory(self,ts, ys, yds, ydds):
         return Trajectory(ts,ys,yds,ydds)

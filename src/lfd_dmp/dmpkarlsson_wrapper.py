@@ -10,8 +10,11 @@ from lfd_dmp.karlsson2017 import DMPkarlsson
 from dmpbbo.dmp.Trajectory import *
 from lfd_dmp.dmp_wrapper import DMPWrapper
 
-from lfd_interface.srv import PlanLFD, PlanLFDRequest, PlanLFDResponse
 from lfd_interface.msg import ControlLFDAction, ControlLFDResult
+
+from arm_controllers.msg import ControlDataMsg
+from lfd_dmp.msg import DMPDataMsg
+
 
 class DMPkarlssonService(DMPWrapper):
 
@@ -82,15 +85,10 @@ class DMPkarlssonController:
     def __init__(self, dmp_service : DMPkarlssonService):
         
         self.dmp_service = dmp_service
-        self.pub_ydd = rospy.Publisher("ydd_control", Float64MultiArray, queue_size=1)
 
+        self.pub_control = rospy.Publisher("control_command", ControlDataMsg, queue_size=1)
+        self.pub_dmp = rospy.Publisher("dmp_feedback", DMPDataMsg, queue_size=1)
 
-        self.pub_test_y = rospy.Publisher("test_y", Float64MultiArray, queue_size=1)
-        self.pub_test_yd = rospy.Publisher("test_yd", Float64MultiArray, queue_size=1)
-        self.pub_test_ydd = rospy.Publisher("test_ydd", Float64MultiArray, queue_size=1)
-
-        self.pub_test_tau = rospy.Publisher("test_tau", Float64, queue_size=1)
-        
         self.sub_controller = None
         self.x = 1
     
@@ -106,22 +104,14 @@ class DMPkarlssonController:
 
     def cb_control_loop(self, statemsg : JointState):
         t = rospy.get_time() - self.t_ref
-        ydd_a,self.x,test_y,test_yd,test_ydd,test_tau = self.dmp_service.dmp.controlStep(t,statemsg.position,statemsg.velocity)
-        u = Float64MultiArray()
-        u.data = ydd_a
-        self.pub_ydd.publish(u)
+        dmp_data, control_data = self.dmp_service.dmp.controlStep(t,statemsg.position,statemsg.velocity)
 
-        tt = Float64MultiArray()
+        now = rospy.Time.now()
+        control_data.header.stamp = now
+        dmp_data.header.stamp = now
+        
+        self.pub_control.publish(control_data)
+        self.pub_dmp.publish(dmp_data)
 
-        tt.data = test_y
-        self.pub_test_y.publish(tt)
-
-        tt.data = test_yd
-        self.pub_test_yd.publish(tt)
-
-        tt.data = test_ydd
-        self.pub_test_ydd.publish(tt)
-
-        self.pub_test_tau.publish(test_tau)
-
+        self.x = dmp_data.x.data
         self.check_target_reached()
