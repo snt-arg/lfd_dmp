@@ -94,7 +94,7 @@ class DMPkarlssonController:
     
     def start_control(self):
         self.dmp_service.dmp.controlStart()
-        self.t_ref = rospy.get_time()
+        self.t_ref = rospy.Time.now()
         if self.sub_controller is None:
             self.sub_controller = rospy.Subscriber("/joint_states", JointState, self.cb_control_loop, queue_size=1)
     
@@ -103,8 +103,8 @@ class DMPkarlssonController:
             self.dmp_service.set_goal_reached()
 
     def cb_control_loop(self, statemsg : JointState):
-        t = rospy.get_time() - self.t_ref
-        dmp_data, control_data = self.dmp_service.dmp.controlStep(t,statemsg.position,statemsg.velocity)
+        t = statemsg.header.stamp - self.t_ref
+        dmp_data, control_data = self.dmp_service.dmp.controlStep(t.to_sec(),statemsg.position,statemsg.velocity)
 
         now = rospy.Time.now()
         control_data.header.stamp = now
