@@ -26,11 +26,6 @@ class DMPkarlssonService(DMPWrapper):
         self.alpha_x = dmpconfig["alpha_x"]
         self.beta_z = dmpconfig["beta_z"]
         self.kc = np.array(dmpconfig["kc"])
-        self.kp = np.array(dmpconfig["kp"])
-        self.kv = np.array(dmpconfig["kv"])
-        self.ki = np.array(dmpconfig["ki"])
-        self.ki_limMaxInt = np.array(dmpconfig["ki_limMaxInt"])
-        self.ki_limMinInt = np.array(dmpconfig["ki_limMinInt"])
         self.n_kernel = dmpconfig["n_kernel"]
 
         self.controller = DMPkarlssonController(self)
@@ -62,8 +57,7 @@ class DMPkarlssonService(DMPWrapper):
 
     def train(self, trajectory):
         dmp = DMPkarlsson.from_traj(trajectory, self.alpha_e, self.alpha_z,
-                                    self.alpha_x, self.beta_z, self.kc, self.kp, 
-                                    self.kv, self.n_kernel, self.ki, self.ki_limMinInt, self.ki_limMaxInt)
+                                    self.alpha_x, self.beta_z, self.kc, self.n_kernel)
         return dmp
 
     def plan(self, ts):

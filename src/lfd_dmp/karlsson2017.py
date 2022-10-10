@@ -71,7 +71,7 @@ class FunctionApproximatorkarlsson:
 
 class DMPkarlsson:
     
-    def __init__(self, y0, g, tau, alpha_z, beta_z, alpha_x, n_kernel, kc, alpha_e, kp, kv, ki, ki_limMinInt, ki_limMaxInt):
+    def __init__(self, y0, g, tau, alpha_z, beta_z, alpha_x, n_kernel, kc, alpha_e):
         
         # number of DOFs, int
         self.dim = y0.size
@@ -98,10 +98,6 @@ class DMPkarlsson:
         # Perturbation control parameters
         self.kc = kc
         self.alpha_e = alpha_e
-        
-        # Control Params
-        self.kp = kp
-        self.kv = kv
 
         # Initialize karlsson function approximators as many as the dimension value
         self.function_approximators = []
@@ -114,27 +110,16 @@ class DMPkarlsson:
         self.control_data = ControlDataMsg()
         self.dmp_data = DMPDataMsg()
 
-        ##### Experimental
-
-        self.ki = ki
-        self.limMaxInt = ki_limMaxInt
-        self.limMinInt = ki_limMinInt
-
-        self.prev_error = 0
-        self.integrator = 0
-
-        # self.differentiator = 0
-        # self.prev_measure = 0
 
 
     @classmethod
     def from_traj(cls,trajectory, alpha_e, alpha_z, alpha_x,
-                beta_z, kc, kp, kv, n_kernel, ki, ki_limMinInt, ki_limMaxInt):
+                beta_z, kc, n_kernel):
 
         tau = trajectory.ts_[-1]
         y0 = trajectory.ys_[0,:]
         g = trajectory.ys_[-1,:]
-        dmp = cls(y0, g, tau, alpha_z, beta_z, alpha_x, n_kernel,kc,alpha_e, kp, kv, ki, ki_limMinInt, ki_limMaxInt)
+        dmp = cls(y0, g, tau, alpha_z, beta_z, alpha_x, n_kernel,kc,alpha_e)
         dmp.train(trajectory)
       
         return dmp
@@ -246,20 +231,6 @@ class DMPkarlsson:
         self.predict_f()
         self.ydd = 1/(self.tau ** 2) * (self.alpha_z*(self.beta_z*(self.g-self.y) - self.tau*self.yd) + self.f)
 
-    def get_ydd_a_lowgain_ff(self):
-        pos_error = self.y-self.y_a
-        # vel_error = self.yd-self.yd_a
-        
-        self.integrator = self.integrator + self.ki * (pos_error + self.prev_error)
-
-        np.clip(self.integrator, self.limMinInt, self.limMaxInt)
-
-        # self.differentiator = (2*self.kv*vel_error + (2*0.02 - 0.01)*self.differentiator)/(2*0.02+0.01)
-
-        self.ydd_a = self.kp*pos_error + self.kv*(self.yd-self.yd_a) + self.ydd + self.integrator
-
-        self.prev_error = pos_error
-
     
     def dmp2vel_acc_ss(self):
         self.predict_f()
@@ -319,13 +290,10 @@ class DMPkarlsson:
         # Calculate yd and ydd based on the last perturbations happened
         self.dmp2vel_acc_ss()
 
-        # Calculate new y_a_dd command based on last position, the new velocity feedback, and calculated dmp yd and ydd
         
         self.control_data.y_d.data = self.y
         self.control_data.yd_d.data = self.yd
         self.control_data.ydd_d.data = self.ydd
-
-        # self.get_ydd_a_lowgain_ff()
 
         self.y = self.y + self.yd*self.dt
         self.e_dot = self.alpha_e*(y_a_new-self.y-self.e)

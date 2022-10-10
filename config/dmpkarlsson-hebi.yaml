@@ -4,10 +4,5 @@ dmpconfig: {
   alpha_x: 1,
   beta_z: 6.25,
   kc: 0,
-  kp: 100,
-  kv: 15,
-  ki: 1,
-  ki_limMaxInt: 0.2,
-  ki_limMinInt: -0.2,
   n_kernel: 15
 }
