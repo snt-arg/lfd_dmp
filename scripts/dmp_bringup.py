@@ -9,6 +9,9 @@ from dmp.msg import *
 from moveit_msgs.msg import RobotTrajectory
 from trajectory_msgs.msg import JointTrajectoryPoint
 
+from dynamic_reconfigure.server import Server
+from lfd_dmp.cfg import DMPKarlssonConfig
+
 from lfd_dmp.dmp_service_handler import DMPService
 from lfd_dmp.dmpbbo_wrapper import DMPBBOService
 from lfd_dmp.dmpkarlsson_wrapper import DMPkarlssonService
@@ -32,6 +35,7 @@ if __name__ == '__main__':
     elif dmp_method == 'dmpkarlsson':
         rospy.loginfo("Executing DMP Karlsson Method")
         dmp_service = DMPkarlssonService(dmp_config)
+        srv = Server(DMPKarlssonConfig, dmp_service.cb_dyn_reconfig)
     
     rospy.spin()
 

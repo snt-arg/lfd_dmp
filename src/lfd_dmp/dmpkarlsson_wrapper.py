@@ -28,6 +28,9 @@ class DMPkarlssonService(DMPWrapper):
         self.kc = np.array(dmpconfig["kc"])
         self.n_kernel = dmpconfig["n_kernel"]
 
+        # Init dyanamic reconfigure params once at the beginning
+        self.init_params = True
+
         self.controller = DMPkarlssonController(self)
 
 
@@ -41,6 +44,17 @@ class DMPkarlssonService(DMPWrapper):
         self.init_dmp(self.goal.plan.name, self.goal.plan.start.positions, self.goal.plan.goal.positions, self.goal.plan.tau)
         self.controller.start_control()
 
+    def cb_dyn_reconfig(self, config, level):
+        if self. init_params:
+            config["kc"] = float(self.kc)
+            self.init_params = False
+        else:
+            self.kc = np.array(config["kc"])
+            try:
+                self.dmp.set_kc(self.kc)
+            except:
+                rospy.logerr("can't reconfigure Kc now, no active dmp found")
+        return config
 
     def acb_control_preempt(self):
         self.as_control.set_preempted()

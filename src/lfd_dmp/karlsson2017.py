@@ -202,7 +202,10 @@ class DMPkarlsson:
         
     def set_attractor_state(self,g):
         self.g = g
-        
+
+    def set_kc(self,kc):
+        self.kc = kc
+
     def integrateStep(self, t):
         """
         Integrate the DMP equation without perturbation
