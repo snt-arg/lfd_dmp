@@ -13,7 +13,7 @@ class DMPWrapper:
 
     def __init__(self):
         #DMP Parameters
-        self.dt = 0.2
+        self.dt = 0.05
         self.trained_dmps = {}
 
         self.server_train_demonstration = rospy.Service("train_demonstration",TrainDemonstration, self.cb_train_demonstration)
