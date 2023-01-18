@@ -9,7 +9,6 @@ project(lfd_dmp)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   rospy
-  lfd_interface
   std_msgs
   message_generation
   dynamic_reconfigure
