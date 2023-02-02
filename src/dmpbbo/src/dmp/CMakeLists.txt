@@ -1,0 +1,7 @@
+file(GLOB HEADERS *.hpp)
+file(GLOB SOURCES *.cpp) 
+
+add_library(dmp ${SHARED_OR_STATIC} ${SOURCES})
+
+install(TARGETS dmp DESTINATION ${LIB_INSTALL_DIR})
+install(FILES ${HEADERS} DESTINATION ${INCLUDE_INSTALL_DIR}/dmp)

@@ -1,0 +1,4 @@
+add_subdirectory(eigenutils)
+add_subdirectory(functionapproximators)
+add_subdirectory(dynamicalsystems)
+add_subdirectory(dmp)

@@ -1,7 +1,7 @@
 
 #%%
 import numpy as np
-from dmpbbo.dmp.Dmp import *
+from dmpbbo.dmps.Dmp import Dmp
 from dmpbbo.dynamicalsystems.ExponentialSystem import ExponentialSystem
 
 from arm_controllers.msg import ControlDataMsg

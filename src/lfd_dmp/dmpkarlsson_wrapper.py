@@ -7,7 +7,7 @@ from std_msgs.msg import Float64MultiArray, Float64
 from sensor_msgs.msg import JointState
 
 from lfd_dmp.karlsson2017 import DMPkarlsson
-from dmpbbo.dmp.Trajectory import *
+from dmpbbo.dmps.Dmp import Dmp
 from lfd_dmp.dmp_wrapper import DMPWrapper
 
 from lfd_interface.msg import ControlLFDAction, ControlLFDResult

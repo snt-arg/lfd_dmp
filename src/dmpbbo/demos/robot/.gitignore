@@ -1,0 +1,4 @@
+*.json
+robotExecute*
+results*
+*.png
