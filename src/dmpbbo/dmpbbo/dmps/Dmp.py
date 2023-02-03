@@ -98,7 +98,7 @@ class Dmp(DynamicalSystem, Parameterizable):
         self._goal_system = kwargs.get("goal_system", goal_system_default)
 
         # Initialize variables related to scaling of the forcing term
-        self._forcing_term_scaling = kwargs.get("forcing_term_scaling", "NO_SCALING")
+        self._forcing_term_scaling = kwargs.get("forcing_term_scaling", "PASTOR2009")
         self._scaling_amplitudes = kwargs.get("scaling_amplitudes", None)
 
         self._ts_train = None
@@ -216,6 +216,10 @@ class Dmp(DynamicalSystem, Parameterizable):
 
         # Gate the output of the function approximators
         gating = x[self.GATING]
+
+        if self._forcing_term_scaling == "PASTOR2009":
+            fa_output = -(self._spring_system.spring_constant * (self._y_attr - self._y_init) * x[self.PHASE]) + self._spring_system.spring_constant * fa_output
+
         forcing_term = gating * fa_output
 
         # Scale the forcing term, if necessary
@@ -227,6 +231,7 @@ class Dmp(DynamicalSystem, Parameterizable):
             if self._scaling_amplitudes is None:
                 raise ValueError("Cannot do AMPLITUDE_SCALING without scaling amplitudes.")
             forcing_term = forcing_term * self._scaling_amplitudes
+        
 
         # Add forcing term to the ZD component of the spring state
         xd[self.SPRING_Z] += np.squeeze(forcing_term) / self._tau
@@ -281,6 +286,10 @@ class Dmp(DynamicalSystem, Parameterizable):
         if suppress_forcing_term:
             fa_outputs.fill(0.0)
 
+        if self._forcing_term_scaling == "PASTOR2009":
+            fa_outputs = -(self._spring_system.spring_constant * (self._y_attr - self._y_init) * xs_phase) + self._spring_system.spring_constant * fa_outputs
+
+
         # Gate the output to get the forcing term
         forcing_terms = fa_outputs * xs_gating
 
@@ -293,7 +302,7 @@ class Dmp(DynamicalSystem, Parameterizable):
         elif self._forcing_term_scaling == "AMPLITUDE_SCALING":
             _scaling_amplitudes_rep = np.tile(self._scaling_amplitudes, (n_time_steps, 1))
             forcing_terms *= _scaling_amplitudes_rep
-
+           
         # Get current delayed goal
         if self._goal_system is None:
             # If there is no dynamical system for the delayed goal, the goal is
@@ -444,6 +453,8 @@ class Dmp(DynamicalSystem, Parameterizable):
         elif self._forcing_term_scaling == "AMPLITUDE_SCALING":
             _scaling_amplitudes_rep = np.tile(self._scaling_amplitudes, (n_time_steps, 1))
             f_target /= _scaling_amplitudes_rep
+        elif self._forcing_term_scaling == "PASTOR2009":
+            f_target = (f_target + (self._spring_system.spring_constant * (self._y_attr - self._y_init) * xs_phase))/self._spring_system.spring_constant
 
         return fa_inputs_phase, f_target
 
