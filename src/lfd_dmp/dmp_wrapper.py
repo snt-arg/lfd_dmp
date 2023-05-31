@@ -1,6 +1,7 @@
 
 import rospy
 import numpy as np
+import matplotlib.pyplot as plt
 
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
@@ -16,6 +17,7 @@ class DMPWrapper:
         #DMP Parameters
         self.dt = 0.05
         self.trained_dmps = {}
+        self.trained_demos = {}
 
         self.server_train_demonstration = rospy.Service("train_demonstration",TrainDemonstration, self.cb_train_demonstration)
         self.server_plan_dmp = rospy.Service("plan_lfd",PlanLFD, self.cb_plan_dmp)
@@ -44,6 +46,7 @@ class DMPWrapper:
 
         # Store Trained DMP
         self.trained_dmps[req.demonstration.name] = dmp
+        self.trained_demos[req.demonstration.name] = traj
 
         rospy.loginfo("dmp training completed successfully")
         return TrainDemonstrationResponse(True)
@@ -68,6 +71,8 @@ class DMPWrapper:
 
         traj_reproduced = self.plan(ts)
 
+        self.plot(self.trained_demos[req.plan.name], traj_reproduced)
+
         plan_path = JointTrajectory()
         plan_path.header.frame_id = "world"
 
@@ -82,3 +87,17 @@ class DMPWrapper:
         plan_path.joint_names = self.joint_names
 
         return PlanLFDResponse(plan_path)
+    
+    def plot(self, demo, plan):
+        lines, axs = demo.plot()
+        plt.setp(lines, linestyle="-", linewidth=4, color=(0.8, 0.8, 0.8))
+        plt.setp(lines, label="demonstration")
+
+        lines, axs = plan.plot(axs)
+        plt.setp(lines, linestyle="--", linewidth=2, color=(0.0, 0.0, 0.5))
+        plt.setp(lines, label="reproduced")
+
+        plt.legend()
+        t = f"Comparison between demonstration and reproduced"
+        plt.gcf().canvas.set_window_title(t)
+        plt.show()
