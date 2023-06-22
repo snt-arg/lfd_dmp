@@ -140,7 +140,7 @@ class TrajectorySmoother:
             self.sym_racc.append(sym_r.MakeDerivative(2))
             self.sym_rjerk.append(sym_r.MakeDerivative(3))
     
-    def init_trajopts(self, duration_coeff = 1.0, path_length_coeff = 1.0, duration_bound = [0.01, 5]):
+    def init_trajopts(self, duration_coeff = 1.0, path_length_coeff = 0.0, duration_bound = [0.01, 5]):
         self.trajopts = []
         self.progs = []
         plant = self.drake_util.plant
@@ -152,7 +152,7 @@ class TrajectorySmoother:
         for trajopt in self.trajopts:
             self.progs.append(trajopt.get_mutable_prog())
             trajopt.AddDurationCost(duration_coeff)
-            trajopt.AddPathLengthCost(path_length_coeff)
+            # trajopt.AddPathLengthCost(path_length_coeff)
             trajopt.AddPositionBounds(
                 plant.GetPositionLowerLimits(), plant.GetPositionUpperLimits()
             )
@@ -171,6 +171,10 @@ class TrajectorySmoother:
     def apply_quadratic_jerk_cost(self, coeff=1.0):
         
         for i in range(len(self.trajopts)):
+            # j0 = self.sym_rjerk[i].value(0.5)
+            # # j1 = self.sym_rjerk[i].value(1)
+            # self.progs[i].AddCost(matmul(j0.transpose(), j0)[0,0] * coeff / pow(self.trajopts[i].duration(),6))
+           
             cps = self.sym_rjerk[i].control_points()
             for j in range(len(cps)):
                 self.progs[i].AddCost(matmul(cps[j].transpose(),cps[j])[0,0] * coeff / pow(self.trajopts[i].duration(),6))
@@ -199,7 +203,14 @@ class TrajectorySmoother:
         for i in range(1,len(self.ys)-1):
             self.trajopts[i-1].AddPathPositionConstraint(self.ys[i] - lb, self.ys[i] + ub, 1)
             self.trajopts[i].AddPathPositionConstraint(self.ys[i] - lb, self.ys[i] + ub, 0)
-                    
+    
+    def apply_joint_cost(self, coeff):
+        num_q = self.drake_util.plant.num_positions()
+        for i in range(1,len(self.ys)-1):
+            self.progs[i].AddQuadraticErrorCost(
+                coeff*np.eye(num_q), self.ys[i], self.trajopts[i].control_points()[:, 0]
+            )
+    
     def apply_task_constraints(self, tol_translation=0.01, tol_rotation=0.1):
         plant = self.drake_util.plant
         gripper_frame = self.drake_util.gripper_frame
@@ -468,7 +479,7 @@ def read_data():
         positions[i,:] = [point.pose.position.x, point.pose.position.y, point.pose.position.z]
         orientations[i,:] = [point.pose.orientation.w, point.pose.orientation.x, point.pose.orientation.y, point.pose.orientation.z] 
         
-    ys = np.insert(ys,[ys.shape[1], ys.shape[1]], 0, axis=1) 
+    # ys = np.insert(ys,[ys.shape[1], ys.shape[1]], 0, axis=1) 
 
     return ys, ts, positions, orientations   
 
@@ -486,19 +497,20 @@ initial_guess = smoother.export_initial_guess()
 
 #%%
 
-# smoother = TrajectorySmoother(drake_util, ys, ts, positions, orientations,4,4, thr_translation=thr_translation)
-# smoother.init_trajopts(duration_coeff=10)
+# smoother = TrajectorySmoother(drake_util, ys, ts, positions, orientations,6,4, thr_translation=thr_translation)
+# smoother.init_trajopts(duration_coeff=10, path_length_coeff=0.0)
 # smoother.create_sym_r()
 # # smoother.apply_quadratic_velocity_cost(coeff=-5.0)
-# smoother.apply_quadratic_jerk_cost(coeff=0.001)
+# smoother.apply_quadratic_jerk_cost(coeff=0.001/(len(smoother.trajopts) * 4))
+# # smoother.apply_joint_cost(coeff=0.1)
 # # smoother.apply_quadratic_acceleration_cost(coeff=10.0)
 
 # # lb = np.array([-1,-1,-1,-1,-1,-1,-1,0,0])
-# ub = np.array([1,1,1,1,1,1,1,0,0])
+# # ub = np.array([1,1,1,1,1,1,1,0,0])
 # # smoother.apply_joint_constraints(lb=0.1*ub,ub=0.1*ub)
-# smoother.apply_task_constraints(tol_translation=0.01, tol_rotation=0.1)
+# smoother.apply_task_constraints(tol_translation=0.01, tol_rotation=0.2)
 # smoother.apply_joining_constraints()
 # smoother.apply_initial_guess(initial_guess)
 # smoother.solve()
-smoother.plot_trajectory(smoother.append_trajectories())
+# smoother.plot_trajectory(smoother.append_trajectories())
 
