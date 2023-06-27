@@ -127,11 +127,11 @@ class Demonstration:
         translation = np.linalg.norm(rb1.translation() - rb2.translation())
         return translation, angle
     
-    def divisible_by(self, x : int):
+    def divisible_by(self, n, overlap=0):
         indices = [i for i in range(self.length)]
-        original_length = self.length
-        desired_length = (original_length // x) * x  # Calculate the desired length
-        elements_to_remove = original_length - desired_length  # Determine the number of elements to remove
+        total_elements = len(indices)
+        segments_count = (total_elements - overlap) // (n - overlap)
+        elements_to_remove = total_elements - (segments_count * (n - overlap) + overlap)
         if elements_to_remove != 0:
             for _ in range(elements_to_remove):
                 index_to_remove = len(indices) // 2  # Find the index of the middle element
@@ -139,38 +139,48 @@ class Demonstration:
 
             self.apply_custom_index(indices)
         
-    def reshape(self, dim):
-        self.ys = self.ys.reshape(dim)   
-        self.positions = self.positions.reshape(dim)
-        self.orientations = self.orientations.reshape(dim)     
+    def reshape(self, step, overlap=0):
+        self.ys = self.split_into_segments(self.ys, step, overlap)
+        self.positions = self.split_into_segments(self.positions, step, overlap)
+        self.orientations = self.split_into_segments(self.orientations, step, overlap)
+        self.num_segments = self.ys.shape[0]
 
+    def split_into_segments(self, waypoints, n, overlap=0):
+        segments = []
+        start = 0
+        while start + n <= len(waypoints):
+            segment = waypoints[start:start+n]
+            segments.append(segment)
+            start += n - overlap
+        return np.array(segments)
 
 
 class TrajectorySmoother:
 
-    def __init__(self, robot, num_control_points = 4, bspline_order = 4, wp_per_segment = None):
+    def __init__(self, robot, num_control_points = 4, bspline_order = 4):
         self.robot = robot
         self.num_control_points = num_control_points
         self.bspline_order = bspline_order
 
+
+    def input_demo(self, demonstration, wp_per_segment = None, overlap = 1):
         if wp_per_segment is None:
-            self.wp_per_segment = num_control_points
+            self.wp_per_segment = self.num_control_points
         else:
             self.wp_per_segment = wp_per_segment
 
-    def input_demo(self, demonstration):
         self.demo = copy.deepcopy(demonstration)
-        self.demo.divisible_by(self.wp_per_segment)
+        self.demo.divisible_by(wp_per_segment, overlap)
         self.waypoints = []
         self.set_waypoints(self.demo)
-        self._segment_waypoints()
+        self._segment_waypoints(overlap)
     
-    def _segment_waypoints(self):
+    def _segment_waypoints(self, overlap):
         step = self.wp_per_segment
         num_segments = int(self.demo.length / step)
-        self.demo.reshape((num_segments, step, -1))
-        self.waypoints = np.array(self.waypoints).reshape((num_segments, step))
-        self.num_segments = num_segments
+        self.demo.reshape(step, overlap)
+        self.waypoints = demo.split_into_segments(np.array(self.waypoints), step, overlap)
+        self.num_segments = self.demo.num_segments
 
     def _make_symbolic(self):
         self.sym_r = []
@@ -236,32 +246,60 @@ class TrajectorySmoother:
             for j in range(len(cps)):
                 self.progs[i].AddCost(matmul(cps[j].transpose(),cps[j])[0,0] * coeff / pow(self.trajopts[i].duration(),6) / (len(cps)*self.num_segments*self.robot.plant.num_positions()))
     
-    def _add_zerovel_constraint(self, trajopt, position, ntime):
+    def _add_zerovel_joint_constraint(self, trajopt, position, ntime):
         num_q = self.robot.plant.num_positions()
         trajopt.AddPathPositionConstraint(position , position , ntime)
-        trajopt.AddPathVelocityConstraint(
-            np.zeros((num_q, 1)), np.zeros((num_q, 1)), ntime
-        )
+        trajopt.AddPathVelocityConstraint(np.zeros((num_q, 1)), np.zeros((num_q, 1)), ntime)
     
     def _add_joint_middle_constraint(self, trajopt, position, tolerance, ntime):
         trajopt.AddPathPositionConstraint(position - tolerance, position + tolerance, ntime)
 
     def add_joint_constraints(self, tolerance = 0):
 
-        self._add_zerovel_constraint(self.trajopts[0], self.demo.ys[0,0], 0)
-        self._add_zerovel_constraint(self.trajopts[-1], self.demo.ys[-1,-1], 1)
+        self._add_zerovel_joint_constraint(self.trajopts[0], self.demo.ys[0,0], 0)
+        self._add_zerovel_joint_constraint(self.trajopts[-1], self.demo.ys[-1,-1], 1)
 
         for i in range(0,self.num_segments - 1):
             self._add_joint_middle_constraint(self.trajopts[i], self.demo.ys[i,-1], tolerance, 1)
     
     def add_joint_cp_error_cost(self, coeff):
         num_q = self.robot.plant.num_positions()
-        for i in range(0,self.num_segments):
-            for j in range(1, self.num_control_points):
-                self.progs[i].AddQuadraticErrorCost(
-                    coeff*np.eye(num_q), self.demo.ys[i,j], self.trajopts[i].control_points()[:, j]
-                )
+        if self.wp_per_segment == self.num_control_points:
+            for i in range(0,self.num_segments):
+                for j in range(1, self.num_control_points):
+                    self.progs[i].AddQuadraticErrorCost(
+                        coeff*np.eye(num_q), self.demo.ys[i,j], self.trajopts[i].control_points()[:, j]
+                    )
     
+
+    def _add_zerovel_pose_constraint(self, trajopt, waypoint, ntime):
+        plant = self.robot.plant
+        gripper_frame = self.robot.gripper_frame
+        plant_context = self.robot.plant_context
+        num_q = self.robot.plant.num_positions()
+
+        pos_constraint = PositionConstraint(
+            plant,
+            plant.world_frame(),
+            waypoint.translation(),
+            waypoint.translation(),
+            gripper_frame,
+            [0, 0, 0],
+            plant_context,
+        )
+        ori_constraint = OrientationConstraint(
+            plant, 
+            gripper_frame, 
+            RotationMatrix(),
+            plant.world_frame(),
+            waypoint.rotation(),
+            0.0,
+            plant_context
+            )
+        trajopt.AddPathPositionConstraint(pos_constraint, ntime)
+        trajopt.AddPathPositionConstraint(ori_constraint, ntime)        
+        trajopt.AddPathVelocityConstraint(np.zeros((num_q, 1)), np.zeros((num_q, 1)), ntime)
+
     def _add_pose_constraint(self, trajopt, waypoint, tol_translation, tol_rotation, ntime):
         plant = self.robot.plant
         gripper_frame = self.robot.gripper_frame
@@ -291,74 +329,11 @@ class TrajectorySmoother:
     
     def add_task_constraints(self, tol_translation=0.01, tol_rotation=0.1):
 
-        # self._add_zerovel_constraint(self.trajopts[0], self.demo.ys[0,0], 0)
-        # self._add_zerovel_constraint(self.trajopts[-1], self.demo.ys[-1,-1], 1)
+        self._add_zerovel_joint_constraint(self.trajopts[0], self.demo.ys[0,0], 0)
+        self._add_zerovel_joint_constraint(self.trajopts[-1], self.demo.ys[-1,-1], 1)
         
-        plant = self.robot.plant
-        gripper_frame = self.robot.gripper_frame
-        plant_context = self.robot.plant_context
-        num_q = self.robot.plant.num_positions()
-
-        start_constraint = PositionConstraint(
-            plant,
-            plant.world_frame(),
-            self.waypoints[0,0].translation(),
-            self.waypoints[0,0].translation(),
-            gripper_frame,
-            [0, 0, 0],
-            plant_context,
-        )
-        self.trajopts[0].AddPathPositionConstraint(start_constraint, 0)
-
-        ori_const = OrientationConstraint(
-            plant, 
-            gripper_frame, 
-            RotationMatrix(),
-            plant.world_frame(),
-            self.waypoints[0,0].rotation(),
-            0.0,
-            plant_context
-            )
-
-        self.trajopts[0].AddPathPositionConstraint(ori_const, 0)
-
-        self.trajopts[0].AddPathVelocityConstraint(
-            np.zeros((num_q, 1)), np.zeros((num_q, 1)), 0
-        )
-
-
-        # progs[0].AddQuadraticErrorCost(
-        #     1*np.eye(num_q), ys[0], trajopts[0].control_points()[:, 0]
-        # )
-
-
-        # Goal Constraints
-        goal_constraint = PositionConstraint(
-            plant,
-            plant.world_frame(),
-            self.waypoints[-1,-1].translation(),
-            self.waypoints[-1,-1].translation(),
-            gripper_frame,
-            [0, 0, 0],
-            plant_context,
-        )
-        self.trajopts[-1].AddPathPositionConstraint(goal_constraint, 1)
-
-        ori_const = OrientationConstraint(
-            plant, 
-            gripper_frame, 
-            RotationMatrix(),
-            plant.world_frame(),
-            self.waypoints[-1,-1].rotation(),
-            0.0,
-            plant_context
-            )
-
-        self.trajopts[-1].AddPathPositionConstraint(ori_const, 1)
-
-        self.trajopts[-1].AddPathVelocityConstraint(
-            np.zeros((num_q, 1)), np.zeros((num_q, 1)), 1
-        )
+        # self._add_zerovel_pose_constraint(self.trajopts[0], self.waypoints[0,0], 0)
+        # self._add_zerovel_pose_constraint(self.trajopts[-1], self.waypoints[-1,-1], 1)
 
         for i in range(0,self.num_segments-1):
             self._add_pose_constraint(self.trajopts[i], self.waypoints[i,-1], tol_translation, tol_rotation, 1)
@@ -528,8 +503,8 @@ demo.filter(thr_translation=thr_translation)
 
 robot = FR3Robot()
 
-smoother = TrajectorySmoother(robot, num_control_points=4, bspline_order=4, wp_per_segment=4)
-smoother.input_demo(demo)
+smoother = TrajectorySmoother(robot, num_control_points=4, bspline_order=4)
+smoother.input_demo(demo, wp_per_segment=2, overlap=1)
 smoother.init_trajopts()
 smoother.add_pos_vel_bounds()
 smoother.add_duration_bound()
@@ -543,17 +518,17 @@ initial_guess = smoother.export_initial_guess()
 
 #%%
 
-smoother = TrajectorySmoother(robot, num_control_points=4, bspline_order=4, wp_per_segment=4)
-smoother.input_demo(demo)
-smoother.init_trajopts()
-smoother.add_pos_vel_bounds()
-smoother.add_duration_bound()
-smoother.add_duration_cost(coeff=1.0)
-smoother.add_task_constraints(tol_translation=0.01, tol_rotation=0.2)
-smoother.add_joint_cp_error_cost(coeff=1)
-smoother.add_jerk_cost(coeff=0.004)
-smoother.join_trajopts()
-smoother.apply_initial_guess(initial_guess)
-smoother.solve()
-smoother.plot_trajectory(smoother.append_trajectories())
+# smoother = TrajectorySmoother(robot, num_control_points=4, bspline_order=4)
+# smoother.input_demo(demo,wp_per_segment=4, overlap=1)
+# smoother.init_trajopts()
+# smoother.add_pos_vel_bounds()
+# smoother.add_duration_bound()
+# smoother.add_duration_cost(coeff=1.0)
+# smoother.add_task_constraints(tol_translation=0.01, tol_rotation=0.2)
+# smoother.add_joint_cp_error_cost(coeff=1)
+# smoother.add_jerk_cost(coeff=0.004)
+# smoother.join_trajopts()
+# smoother.apply_initial_guess(initial_guess)
+# smoother.solve()
+# smoother.plot_trajectory(smoother.append_trajectories())
 
