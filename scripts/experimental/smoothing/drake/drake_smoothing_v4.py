@@ -329,11 +329,11 @@ class TrajectorySmoother:
     
     def add_task_constraints(self, tol_translation=0.01, tol_rotation=0.1):
 
-        self._add_zerovel_joint_constraint(self.trajopts[0], self.demo.ys[0,0], 0)
-        self._add_zerovel_joint_constraint(self.trajopts[-1], self.demo.ys[-1,-1], 1)
+        # self._add_zerovel_joint_constraint(self.trajopts[0], self.demo.ys[0,0], 0)
+        # self._add_zerovel_joint_constraint(self.trajopts[-1], self.demo.ys[-1,-1], 1)
         
-        # self._add_zerovel_pose_constraint(self.trajopts[0], self.waypoints[0,0], 0)
-        # self._add_zerovel_pose_constraint(self.trajopts[-1], self.waypoints[-1,-1], 1)
+        self._add_zerovel_pose_constraint(self.trajopts[0], self.waypoints[0,0], 0)
+        self._add_zerovel_pose_constraint(self.trajopts[-1], self.waypoints[-1,-1], 1)
 
         for i in range(0,self.num_segments-1):
             self._add_pose_constraint(self.trajopts[i], self.waypoints[i,-1], tol_translation, tol_rotation, 1)
@@ -457,7 +457,45 @@ class TrajectorySmoother:
     def apply_initial_guess(self, initial_guess):
         for (i,trajopt) in enumerate(self.trajopts):
             self.nprog.SetInitialGuess(trajopt.control_points(), initial_guess[i])
+
+    def export_timing(self):
+        timings = [0]
+        for trajopt in self.trajopts:
+            timings.append(timings[-1] + self.result.GetSolution(trajopt.duration()))
+        return timings
     
+    def import_timing(self, timings):
+        self.timings = timings
+#%%
+class SingleSmoother(TrajectorySmoother):
+
+    def __init__(self, robot, num_control_points = 4, bspline_order = 4):
+        super().__init__(robot, num_control_points, bspline_order)
+        
+    def apply_initial_guess(self, initial_guess):
+        trajopt = self.trajopts[0]
+        initial_guess = np.array(initial_guess)
+        cp1 = initial_guess[0,:,0].reshape(1,-1)
+        cp2 = initial_guess[:,:,-1]
+        cps = np.concatenate((cp1,cp2), axis=0).transpose()
+        self.nprog.SetInitialGuess(trajopt.control_points(), cps)
+    
+    def add_task_constraints(self, tol_translation=0.01, tol_rotation=0.1):
+        super().add_task_constraints(tol_translation, tol_rotation)
+
+        self.timings = self.timings / np.max(self.timings)
+
+        for (i,timing) in enumerate(self.timings):
+            self._add_pose_constraint(self.trajopts[0], self.waypoints[0,i],tol_translation, tol_rotation,timing)
+
+    def add_joint_cp_error_cost(self, coeff):
+        num_q = self.robot.plant.num_positions()
+        for j in range(0, self.num_control_points):
+            self.progs[0].AddQuadraticErrorCost(
+                coeff*np.eye(num_q), self.demo.ys[0,j], self.trajopts[0].control_points()[:, j]
+            )
+
+
 #%%
     
 def read_data():
@@ -515,6 +553,25 @@ smoother.join_trajopts()
 smoother.solve()
 smoother.plot_trajectory(smoother.append_trajectories())
 initial_guess = smoother.export_initial_guess()
+timings = smoother.export_timing()
+
+
+#%%
+smoother = SingleSmoother(robot, num_control_points=demo.length, bspline_order=4)
+smoother.input_demo(demo,wp_per_segment=demo.length, overlap=0)
+smoother.init_trajopts()
+smoother.add_pos_vel_bounds()
+smoother.add_duration_bound(duration_bound=[0.01, 5])
+smoother.add_duration_cost(coeff=1.0)
+smoother.import_timing(timings)
+smoother.add_task_constraints(tol_translation=0.1, tol_rotation=0.2)
+smoother.add_joint_cp_error_cost(coeff=1)
+smoother.add_jerk_cost(coeff=0.008)
+smoother.join_trajopts()
+smoother.apply_initial_guess(initial_guess)
+smoother.solve()
+smoother.plot_trajectory(smoother.append_trajectories())
+
 
 #%%
 
@@ -524,8 +581,8 @@ initial_guess = smoother.export_initial_guess()
 # smoother.add_pos_vel_bounds()
 # smoother.add_duration_bound()
 # smoother.add_duration_cost(coeff=1.0)
-# smoother.add_task_constraints(tol_translation=0.01, tol_rotation=0.2)
-# smoother.add_joint_cp_error_cost(coeff=1)
+# smoother.add_task_constraints(tol_translation=0.1, tol_rotation=0.2)
+# smoother.add_joint_cp_error_cost(coeff=0.1)
 # smoother.add_jerk_cost(coeff=0.004)
 # smoother.join_trajopts()
 # smoother.apply_initial_guess(initial_guess)
