@@ -318,11 +318,11 @@ class TrajectorySmoother:
     
     def add_task_constraints(self):
 
-        # self._add_joint_constraint(self.trajopts[0], self.demo.ys[0,0], 0, rest=True)
-        # self._add_joint_constraint(self.trajopts[-1], self.demo.ys[-1,-1], 1, rest=True)
+        self._add_joint_constraint(self.trajopts[0], self.demo.ys[0,0],0, 0, rest=True)
+        self._add_joint_constraint(self.trajopts[-1], self.demo.ys[-1,-1],0, 1, rest=True)
         
-        self._add_pose_constraint(self.trajopts[0], self.waypoints[0,0],0, 0, 0, rest=True)
-        self._add_pose_constraint(self.trajopts[-1], self.waypoints[-1,-1],0, 0, 1, rest=True)
+        # self._add_pose_constraint(self.trajopts[0], self.waypoints[0,0],0, 0, 0, rest=True)
+        # self._add_pose_constraint(self.trajopts[-1], self.waypoints[-1,-1],0, 0, 1, rest=True)
 
         for i in range(0,self.num_segments-1):
             self._add_pose_constraint(self.trajopts[i], self.waypoints[i,-1], 
@@ -351,14 +351,16 @@ class TrajectorySmoother:
             self.nprog.AddLinearConstraint(self.sym_r[i-1].value(1) - self.sym_r[i].value(0), np.zeros((num_q, 1)), np.zeros((num_q, 1)))
 
     def solve(self):
+        self._solve(self.nprog)
+    
+    def _solve(self,prog):
         solver_options = SolverOptions()
         solver_options.SetOption(CommonSolverOption.kPrintFileName, self.solver_log)
 
         if self.solver is None:
-            self.result = Solve(self.nprog, solver_options=solver_options)
+            self.result = Solve(prog, solver_options=solver_options)
         else:
-            self.result = self.solver.Solve(self.nprog, solver_options=solver_options)
-
+            self.result = self.solver.Solve(prog, solver_options=solver_options)
         self.success = self.result.is_success()
         if not self.success:
             print("Optimization Failed")
@@ -462,6 +464,8 @@ class SingleSmoother(TrajectorySmoother):
 
     def __init__(self, robot, config):
         super().__init__(robot, config)
+        self.coeff_vel = config.get("coeff_vel", 1)
+
         
     def apply_initial_guess(self, initial_guess):
         trajopt = self.trajopts[0]
@@ -469,16 +473,20 @@ class SingleSmoother(TrajectorySmoother):
         cp1 = initial_guess[0,:,0].reshape(1,-1)
         cp2 = initial_guess[:,:,-1]
         cps = np.concatenate((cp1,cp2), axis=0).transpose()
-        self.nprog.SetInitialGuess(trajopt.control_points(), cps)
+        self.progs[0].SetInitialGuess(trajopt.control_points(), cps)
+        self.progs[0].SetInitialGuess(trajopt.duration(), 0.1)
     
     def add_task_constraints(self):
         super().add_task_constraints()
 
-        self.timings = self.timings / np.max(self.timings)
+        self.ntimings = self.timings / np.max(self.timings)
 
-        for (i,timing) in enumerate(self.timings):
+        for (i,timing) in enumerate(self.ntimings):
             self._add_pose_constraint(self.trajopts[0], self.waypoints[0,i],
                                       self.tol_translation, self.tol_rotation,timing)
+
+    def solve(self):
+        self._solve(self.progs[0])
 
     def add_joint_cp_error_cost(self):
         num_q = self.robot.plant.num_positions()
@@ -492,21 +500,36 @@ class SingleSmoother(TrajectorySmoother):
         bound = np.array([500 for _ in range(7)])
         self.trajopts[0].AddJerkBounds(-bound,bound)
         ts = np.linspace(0, 1, 100)
+        cost = 0
         for i in range(1,len(ts)):
             jerk = self.sym_rjerk[0].value(ts[i])
             dt = ts[i] - ts[i-1]
-            self.progs[0].AddCost(matmul(jerk.transpose(),jerk)[0,0] * dt #* self.trajopts[0].duration()
-                                   * self.coeff_jerk / (len(ts)*self.robot.plant.num_positions()))
+            cost += matmul(jerk.transpose(),jerk)[0,0] * dt * self.coeff_jerk * pow(self.trajopts[0].duration(),6) / (len(ts)*self.robot.plant.num_positions())
+            
+            # self.progs[0].AddCost(matmul(jerk.transpose(),jerk)[0,0] * dt #* self.trajopts[0].duration()
+            #                        * self.coeff_jerk / (len(ts)*self.robot.plant.num_positions()))
+
+        self.jerk_cost = self.progs[0].AddCost(cost)
 
         # cps = self.sym_rjerk[0].control_points()
         # for j in range(len(cps)):
         #     self.progs[0].AddCost(matmul(cps[j].transpose(),cps[j])[0,0] * self.coeff_jerk / (len(cps)*self.num_segments*self.robot.plant.num_positions()))
 
+    def add_vel_cost(self):
+        ts = np.linspace(0, 1, 100)
+        cost = 0
+        limit = self.trajopts[0].duration()* self.robot.plant.GetVelocityUpperLimits()
+        for i in range(1,len(ts)):
+            vel = self.sym_rvel[0].value(ts[i])
+            # obj = matmul(limit.transpose(),limit) - pow(vel,2)
+            dt = ts[i] - ts[i-1]
+            cost += matmul((limit-vel).transpose(),(limit+vel))[0,0] * dt * self.coeff_vel / (len(ts)*self.robot.plant.num_positions())
 
+        self.vel_cost = self.progs[0].AddCost(cost)
 #%%
     
 def read_data():
-    with open('/home/abrk/catkin_ws/src/lfd/lfd_dmp/scripts/experimental/smoothing/0.pickle', 'rb') as file:
+    with open('/home/abrk/catkin_ws/src/lfd/lfd_dmp/scripts/experimental/smoothing/00.pickle', 'rb') as file:
         demonstration = pickle.load(file)
     
     joint_trajectory = demonstration.joint_trajectory
@@ -561,7 +584,7 @@ config_1 = {
     "solver_log" : "/tmp/trajopt1.txt",
 }
 
-config_2 = {
+config_ip = {
     "num_cps" : demo.length,
     "bspline_order" : 4,
     "wp_per_segment" : demo.length,
@@ -569,12 +592,14 @@ config_2 = {
     "bound_duration" : [0.01,5],
     "coeff_duration" : 1,
     "coeff_jerk" : 0.04,
+    "coeff_vel" : 0.0,
     "coeff_joint_cp_error" : 1,
     "tol_translation" : 0.02,
     "tol_rotation" : 0.1,
     "solver_log" : "/tmp/trajopt2.txt",
     "solver" : IpoptSolver()
 }
+
 
 smoother = TrajectorySmoother(robot, config_1)
 smoother.input_demo(demo)
@@ -591,7 +616,7 @@ timings = smoother.export_timing()
 
 
 #%%
-smoother = SingleSmoother(robot, config_2)
+smoother = SingleSmoother(robot, config_ip)
 smoother.input_demo(demo)
 smoother.init_trajopts()
 smoother.add_pos_vel_bounds()
@@ -601,25 +626,11 @@ smoother.import_timing(timings)
 smoother.add_task_constraints()
 smoother.add_joint_cp_error_cost()
 smoother.add_jerk_cost()
-smoother.finalize()
+smoother.add_vel_cost()
 smoother.apply_initial_guess(initial_guess)
 smoother.solve()
 smoother.plot_trajectory(smoother.compile_trajectory())
 
+# guess = smoother.trajopts[0].ReconstructTrajectory(smoother.result)
 
-#%%
-
-# smoother = TrajectorySmoother(robot, num_control_points=4, bspline_order=4)
-# smoother.input_demo(demo,wp_per_segment=4, overlap=1)
-# smoother.init_trajopts()
-# smoother.add_pos_vel_bounds()
-# smoother.add_duration_bound()
-# smoother.add_duration_cost(coeff=1.0)
-# smoother.add_task_constraints(tol_translation=0.05, tol_rotation=0.1)
-# smoother.add_joint_cp_error_cost(coeff=1)
-# smoother.add_jerk_cost(coeff=0.004)
-# smoother.finalize()
-# smoother.apply_initial_guess(initial_guess)
-# smoother.solve()
-# smoother.plot_trajectory(smoother.compile_trajectory())
 
