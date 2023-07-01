@@ -19,9 +19,13 @@ from manipulation.meshcat_utils import PublishPositionTrajectory
 
 #%% Drake Util Class
 
-class FR3Robot:
+class FR3Drake:
 
-    def __init__(self, base_frame = "fr3_link0", gripper_frame = "fr3_link8", home_pos = None):
+    def __init__(self, franka_pkg_xml, urdf_path, base_frame = "fr3_link0", gripper_frame = "fr3_link8", home_pos = None):
+        
+        self.urdf_path = urdf_path
+        self.franka_path = franka_pkg_xml
+        
         self.meshcat = StartMeshcat()
         self.meshcat.Delete()
         self.builder = DiagramBuilder()
@@ -56,15 +60,16 @@ class FR3Robot:
         self.num_q = self.plant.num_positions()
         self.q0 = self.plant.GetPositions(self.plant_context)
         self.gripper_frame = self.plant.GetFrameByName(gripper_frame, self.robot)
+        
  
     
     def add_fr3(self, home_pos, base_frame):
-        urdf = "package://my_drake/manipulation/models/franka_description/urdf/fr3.urdf"
+        urdf = "package://franka_drake/urdf/fr3.urdf"
 
         parser = Parser(self.plant)
-        parser.package_map().AddPackageXml("/home/abrk/catkin_ws/src/franka/franka_ros/franka_description/package.xml")
-        parser.package_map().AddPackageXml("/home/abrk/thesis/drake/my_drake/package.xml")
-        fr3 = parser.AddModelsFromUrl(urdf)[0]
+        # parser.package_map().AddPackageXml("/home/abrk/catkin_ws/src/franka/franka_ros/franka_description/package.xml")
+        parser.package_map().AddPackageXml(self.franka_path)
+        fr3 = parser.AddModelsFromUrl(self.urdf_path)[0]
         self.plant.WeldFrames(self.plant.world_frame(), self.plant.GetFrameByName(base_frame))
 
         # Set default positions:
@@ -571,7 +576,8 @@ ys, ts, positions, orientations = read_data()
 demo = Demonstration(ts, ys, positions, orientations)
 demo.filter(thr_translation=thr_translation)
 
-robot = FR3Robot()
+robot = FR3Drake(franka_pkg_xml="/home/abrk/thesis/drake/franka_drake/package.xml",
+                 urdf_path="package://franka_drake/urdf/fr3_nohand.urdf")
 
 config_1 = {
     "num_cps" : 4,
