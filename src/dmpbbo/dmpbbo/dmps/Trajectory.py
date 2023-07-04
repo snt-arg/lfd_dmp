@@ -21,7 +21,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.signal import butter, filtfilt
-from scipy.interpolate import CubicSpline
 
 
 class Trajectory:
@@ -62,33 +61,12 @@ class Trajectory:
         if ys.ndim == 2:
             self._dim = ys.shape[1]
 
-        ys, yds, ydds = self.spline(ts,ys)
-
         self._ts = ts
         self._dt_mean = _dt_mean
         self._ys = ys
         self._yds = yds
         self._ydds = ydds
         self._misc = misc
-
-    def spline(self, ts, ys):
-        splines = []
-        for dof in range(ys.shape[1]):
-            spline = CubicSpline(ts, ys[:, dof])
-            splines.append(spline)
-
-        # Evaluate velocities and accelerations at each time step
-        ys_spline = np.zeros_like(ys)  # Array to store spline version of ys
-        yds = np.zeros_like(ys)   # Array to store velocities
-        ydds = np.zeros_like(ys)  # Array to store accelerations
-
-        for i, t in enumerate(ts):
-            for dof in range(ys.shape[1]):
-                ys_spline[i, dof] = splines[dof](t)  # Evaluate spline version of ys
-                yds[i, dof] = splines[dof](t, 1)  # Evaluate velocity
-                ydds[i, dof] = splines[dof](t, 2)  # Evaluate acceleration
-        
-        return ys_spline, yds, ydds
 
     @classmethod
     def from_matrix(cls, matrix, n_dims_misc=0):
@@ -512,8 +490,6 @@ class Trajectory:
         _dt_mean = np.mean(np.diff(self._ts))
         sample_freq = 1.0 / _dt_mean
         self._ys = butter_low_pass_filter(self._ys, cutoff, sample_freq, order)
-        self._yds = butter_low_pass_filter(self._yds, cutoff, sample_freq, order)
-        self._ydds = butter_low_pass_filter(self._ydds, cutoff, sample_freq, order)
         self.recompute_derivatives()
 
     def plot(self, axs=None):
