@@ -1,4 +1,0 @@
-[submodule "src/lfd_smoothing"]
-	path = src/lfd_smoothing
-	url = https://github.com/snt-arg/lfd_smoothing.git
-	branch = abrk

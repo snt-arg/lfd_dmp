@@ -2,8 +2,6 @@
 import roslib; 
 roslib.load_manifest('dmp')
 import rospy 
-import copy
-import numpy as np
 from dmp.srv import *
 from dmp.msg import *
 from moveit_msgs.msg import RobotTrajectory
@@ -18,7 +16,7 @@ from lfd_dmp.dmpkarlsson_wrapper import DMPkarlssonService
 
 if __name__ == '__main__':
 
-    rospy.init_node('dmp_tutorial_node')
+    rospy.init_node('dmp_bringup_node')
     
     dmp_method = rospy.get_param("~dmp_method")
     try:

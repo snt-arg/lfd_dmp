@@ -1,6 +1,6 @@
 <launch>
     
-    <arg name="dmp_method" default="dmpros"/>
+    <arg name="dmp_method" default="dmpbbo"/>
     <arg name="robot_name" default="hebi"/>
 
     <group if="$(eval dmp_method == 'dmpros')">
