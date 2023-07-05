@@ -2,10 +2,6 @@
 import rospy
 import numpy as np
 
-from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
-
-from lfd_interface.srv import TrainDemonstration, TrainDemonstrationRequest, TrainDemonstrationResponse
-from lfd_interface.srv import PlanLFD, PlanLFDRequest, PlanLFDResponse
 
 
 from dmpbbo.dmps.Dmp import Dmp
@@ -20,12 +16,12 @@ class DMPBBOService(DMPWrapper):
 
     def __init__(self):
         super().__init__()
-        self.num_bases = 10
+        self.num_bases = 20
 
     def train(self, trajectory):
 
-        function_apps = [FunctionApproximatorRBFN(self.num_bases, 0.7) for _ in range(trajectory.dim)]
-        # function_apps = [FunctionApproximatorLWR(self.num_bases, 0.5) for _ in range(trajectory.dim)]
+        # function_apps = [FunctionApproximatorRBFN(self.num_bases, 0.7) for _ in range(trajectory.dim)]
+        function_apps = [FunctionApproximatorLWR(self.num_bases, 0.5) for _ in range(trajectory.dim)]
         # function_apps = [FunctionApproximatorWLS() for _ in range(trajectory.dim)]
         # Setup DMP
         name='DmpBbo'
