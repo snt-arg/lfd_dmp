@@ -2,6 +2,7 @@
 import rospy
 import numpy as np
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
@@ -100,4 +101,8 @@ class DMPWrapper:
         plt.legend()
         t = f"Comparison between demonstration and reproduced"
         plt.gcf().canvas.set_window_title(t)
-        plt.show()
+
+        current_datetime = datetime.now().strftime('%Y%m%d%H%M%S')
+        filename = '/tmp/' + f'output_dmp_{current_datetime}.svg'
+        plt.savefig(filename, format='svg')
+        # plt.show()
