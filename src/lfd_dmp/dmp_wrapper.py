@@ -16,7 +16,7 @@ class DMPWrapper:
 
     def __init__(self):
         #DMP Parameters
-        self.dt = 0.05
+        self.dt = 0.01
         self.trained_dmps = {}
         self.trained_demos = {}
 
@@ -27,14 +27,23 @@ class DMPWrapper:
         n_time_steps = len(demonstration.joint_trajectory.points)
         n_dim = len(demonstration.joint_trajectory.joint_names)
 
-        path = np.zeros([n_time_steps,n_dim])
+        ys = np.zeros([n_time_steps,n_dim])
+        yds = np.zeros([n_time_steps,n_dim])
+        ydds = np.zeros([n_time_steps,n_dim])
         ts = np.zeros(n_time_steps)
 
         for (i,point) in enumerate(demonstration.joint_trajectory.points):
-            path[i,:] = point.positions
+            ys[i,:] = point.positions
+            yds[i,:] = point.velocities or None
+            ydds[i,:] = point.accelerations or None
             ts[i] = point.time_from_start.to_sec()
 
-        return Trajectory(ts, path)
+        if np.isnan(yds).any(): 
+            yds = None
+        if np.isnan(ydds).any(): 
+            ydds = None
+
+        return Trajectory(ts, ys, yds, ydds)
 
     def train(self, trajectory):
         raise NotImplementedError()
