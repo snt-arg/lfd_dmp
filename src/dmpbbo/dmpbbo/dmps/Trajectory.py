@@ -27,7 +27,7 @@ class Trajectory:
     """ Class to represent trajectory, i.e. positions, velocities and accelerations over time.
     """
 
-    def __init__(self, ts, ys, yds=None, ydds=None, misc=None):
+    def __init__(self, ts, ys, yds=None, ydds=None, yddds=None, misc=None):
 
         n_time_steps = ts.size
         if n_time_steps != ys.shape[0]:
@@ -47,6 +47,8 @@ class Trajectory:
 
         if ydds is None:
             ydds = diffnc(yds, _dt_mean)
+        if yddds is None:
+            yddds = diffnc(ydds, _dt_mean)
         else:
             if ydds.ndim == 1:
                 ydds = ydds.reshape((n_time_steps, 1))
@@ -66,6 +68,7 @@ class Trajectory:
         self._ys = ys
         self._yds = yds
         self._ydds = ydds
+        self._yddds = yddds
         self._misc = misc
 
     @classmethod
@@ -505,24 +508,31 @@ class Trajectory:
         @return: line_handles and axes
         """
         if not axs:
-            n_plots = 4 if self.has_misc() else 3
+            n_plots = 5 if self.has_misc() else 4
             fig = plt.figure(figsize=(5 * n_plots, 4))
             axs = [fig.add_subplot(1, n_plots, i + 1) for i in range(n_plots)]
 
         """Plot a trajectory"""
         all_handles = axs[0].plot(self._ts, self._ys, "-")
         axs[0].set_xlabel("time (s)")
-        axs[0].set_ylabel("y")
+        axs[0].set_ylabel("joint position")
         if len(axs) > 1:
             h = axs[1].plot(self._ts, self._yds, "-")
             all_handles.extend(h)
             axs[1].set_xlabel("time (s)")
-            axs[1].set_ylabel("yd")
+            axs[1].set_ylabel("velocity")
         if len(axs) > 2:
             h = axs[2].plot(self._ts, self._ydds, "-")
             all_handles.extend(h)
             axs[2].set_xlabel("time (s)")
-            axs[2].set_ylabel("ydd")
+            axs[2].set_ylabel("acceleration")
+
+        if len(axs) > 3:
+            h = axs[3].plot(self._ts, self._yddds, "-")
+            all_handles.extend(h)
+            axs[3].set_xlabel("time (s)")
+            axs[3].set_ylabel("jerk")
+
 
         if self.has_misc() and len(axs) > 3:
             h = axs[3].plot(self._ts, self._misc, "-")

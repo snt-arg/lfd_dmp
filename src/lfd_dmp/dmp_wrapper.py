@@ -101,11 +101,12 @@ class DMPWrapper:
     def plot(self, demo, plan):
         lines, axs = demo.plot()
         plt.setp(lines, linestyle="-", linewidth=4, color=(0.8, 0.8, 0.8))
-        plt.setp(lines, label="demonstration")
+        # plt.setp(lines, label="demonstration")
 
         lines, axs = plan.plot(axs)
         plt.setp(lines, linestyle="--", linewidth=2, color=(0.0, 0.0, 0.5))
-        plt.setp(lines, label="reproduced")
+        # plt.setp(lines, label="reproduced")
+        plt.tight_layout()
 
         plt.legend()
         t = f"Comparison between demonstration and reproduced"
