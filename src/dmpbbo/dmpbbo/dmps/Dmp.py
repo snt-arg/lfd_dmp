@@ -495,16 +495,15 @@ class Dmp(DynamicalSystem, Parameterizable):
         @param new_tau: The new time constant
         """
         self._tau = new_tau  # noqa defined inside __init__ of DynamicalSystem
-        tau_scale = new_tau / self.tau
 
         # Set value in all relevant subsystems also
-        self._phase_system.tau *= tau_scale
-        self._gating_system.tau *= tau_scale
+        self._phase_system.tau = new_tau
+        self._gating_system.tau = new_tau
 
-        self._spring_system.tau *= tau_scale
+        self._spring_system.tau = new_tau
 
         if self._goal_system is not None:
-            self._goal_system.tau *= tau_scale
+            self._goal_system.tau = new_tau
 
     @DynamicalSystem.y_init.setter
     def y_init(self, y_init_new):

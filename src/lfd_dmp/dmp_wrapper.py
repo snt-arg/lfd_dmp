@@ -64,17 +64,17 @@ class DMPWrapper:
     def plan(self, ts):
         raise NotImplementedError()
 
-    def init_dmp(self, name, start, goal, tau):
+    def init_dmp(self, name, start, goal, tau_scale):
         self.dmp = self.trained_dmps[name]
-        self.dmp.tau = tau
+        self.dmp.tau *= tau_scale
         if len(start) != 0:
             self.dmp.y_init = np.array(start)
         if len(goal) != 0:
-            self.dmp.y_attr = np.array(goal) 
+            self.dmp.y_attr = np.array(goal)
+        return self.dmp.tau
 
     def cb_plan_dmp(self, req : PlanLFDRequest):
-        self.init_dmp(req.plan.name, req.plan.start.positions, req.plan.goal.positions, req.plan.tau)
-        tau = req.plan.tau
+        tau = self.init_dmp(req.plan.name, req.plan.start.positions, req.plan.goal.positions, req.plan.tau)
 
         n_time_steps = int(np.ceil(tau/self.dt) + 1)
         ts = np.linspace(0,tau,n_time_steps)
