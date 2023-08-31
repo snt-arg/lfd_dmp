@@ -3,6 +3,7 @@ import rospy
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
+import pickle
 
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
@@ -76,8 +77,10 @@ class DMPWrapper:
     def cb_plan_dmp(self, req : PlanLFDRequest):
         tau = self.init_dmp(req.plan.name, req.plan.start.positions, req.plan.goal.positions, req.plan.tau)
 
-        n_time_steps = int(np.ceil(tau/self.dt) + 1)
-        ts = np.linspace(0,tau,n_time_steps)
+        plan_tau = tau+1.50
+        # plan_tau = tau+ 0.18
+        n_time_steps = int(np.ceil(plan_tau/self.dt) + 1)
+        ts = np.linspace(0,plan_tau,n_time_steps)
 
         traj_reproduced = self.plan(ts)
 
@@ -95,6 +98,9 @@ class DMPWrapper:
             plan_path.points.append(pt)
 
         plan_path.joint_names = self.joint_names
+
+        with open("/tmp/{}.pickle".format(req.plan.name), 'wb') as file:
+            pickle.dump(plan_path,file)
 
         return PlanLFDResponse(plan_path)
     
