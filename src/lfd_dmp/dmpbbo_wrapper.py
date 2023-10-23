@@ -16,7 +16,7 @@ class DMPBBOService(DMPWrapper):
 
     def __init__(self):
         super().__init__()
-        self.num_bases = 20
+        self.num_bases = 100
 
     def train(self, trajectory):
 

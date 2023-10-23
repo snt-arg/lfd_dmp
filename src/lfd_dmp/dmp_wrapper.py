@@ -77,7 +77,7 @@ class DMPWrapper:
     def cb_plan_dmp(self, req : PlanLFDRequest):
         tau = self.init_dmp(req.plan.name, req.plan.start.positions, req.plan.goal.positions, req.plan.tau)
 
-        plan_tau = tau+1.50
+        plan_tau = tau
         # plan_tau = tau+ 0.18
         n_time_steps = int(np.ceil(plan_tau/self.dt) + 1)
         ts = np.linspace(0,plan_tau,n_time_steps)
