@@ -17,7 +17,7 @@ class DMPWrapper:
 
     def __init__(self):
         #DMP Parameters
-        self.dt = 0.01
+        self.dt = 0.1
         self.trained_dmps = {}
         self.trained_demos = {}
 
@@ -98,6 +98,8 @@ class DMPWrapper:
             plan_path.points.append(pt)
 
         plan_path.joint_names = self.joint_names
+
+        # plan_path.points[0].accelerations[1:] = [0.0,0.0,0.0,0.0,0.0,0.0]
 
         with open("/tmp/{}.pickle".format(req.plan.name), 'wb') as file:
             pickle.dump(plan_path,file)
