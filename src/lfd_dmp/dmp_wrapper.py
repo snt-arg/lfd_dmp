@@ -17,7 +17,7 @@ class DMPWrapper:
 
     def __init__(self):
         #DMP Parameters
-        self.dt = 0.1
+        self.n_time_steps = 100
         self.trained_dmps = {}
         self.trained_demos = {}
 
@@ -79,7 +79,7 @@ class DMPWrapper:
 
         plan_tau = tau
         # plan_tau = tau+ 0.18
-        n_time_steps = int(np.ceil(plan_tau/self.dt) + 1)
+        n_time_steps = self.n_time_steps
         ts = np.linspace(0,plan_tau,n_time_steps)
 
         traj_reproduced = self.plan(ts)
