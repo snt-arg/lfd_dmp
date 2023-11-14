@@ -29,6 +29,7 @@ from dmpbbo.dynamicalsystems.SpringDamperSystem import SpringDamperSystem
 from dmpbbo.dynamicalsystems.TimeSystem import TimeSystem
 from dmpbbo.functionapproximators.Parameterizable import Parameterizable
 
+import pickle
 
 class Dmp(DynamicalSystem, Parameterizable):
     """ Dynamical Movement Primitive
@@ -387,6 +388,13 @@ class Dmp(DynamicalSystem, Parameterizable):
         # Do not train function approximators if there are none
         if self._function_approximators is not None:
             fa_input_phase, f_target = self._compute_targets(trajectory)
+            
+            data_to_save = {
+                "inputs": fa_input_phase,
+                "outputs": f_target
+            }
+            with open("/tmp/training_data.pkl", "wb") as file:
+                pickle.dump(data_to_save, file)     
 
             for dd in range(self.dim_dmp()):
                 fa_target = f_target[:, dd]

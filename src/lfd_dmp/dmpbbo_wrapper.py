@@ -2,7 +2,7 @@
 import rospy
 import numpy as np
 
-
+import pickle
 
 from dmpbbo.dmps.Dmp import Dmp
 from dmpbbo.dmps.Trajectory import Trajectory
@@ -40,10 +40,20 @@ class DMPBBOService(DMPWrapper):
 
         xs_step = np.zeros([n_time_steps,x.shape[0]])
         xds_step = np.zeros([n_time_steps,x.shape[0]])
+        f_step = np.zeros([n_time_steps,self.dmp._dim_y])
 
         xs_step[0,:] = x
         xds_step[0,:] = xd
+
         for tt in range(1,n_time_steps):
+            f_step[tt,:] = self.dmp._compute_func_approx_predictions(xs_step[tt-1,self.dmp.PHASE])
             (xs_step[tt,:],xds_step[tt,:]) = self.dmp.integrate_step(dt,xs_step[tt-1,:])
+
+        data_to_save = {
+            "inputs": xs_step[:,self.dmp.PHASE],
+            "outputs": f_step
+        }
+        with open("/tmp/planning_data.pkl", "wb") as file:
+            pickle.dump(data_to_save, file)     
 
         return self.dmp.states_as_trajectory(ts,xs_step,xds_step)
