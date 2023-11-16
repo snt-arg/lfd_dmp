@@ -9,6 +9,7 @@ from dmpbbo.dmps.Trajectory import Trajectory
 from dmpbbo.functionapproximators.FunctionApproximatorRBFN import FunctionApproximatorRBFN
 from dmpbbo.functionapproximators.FunctionApproximatorLWR import FunctionApproximatorLWR
 from dmpbbo.functionapproximators.FunctionApproximatorWLS import FunctionApproximatorWLS
+from dmpbbo.functionapproximators.FunctionApproximatorBSpline import FunctionApproximatorBSpline
 
 from lfd_dmp.dmp_wrapper import DMPWrapper
 
@@ -21,7 +22,8 @@ class DMPBBOService(DMPWrapper):
     def train(self, trajectory):
 
         # function_apps = [FunctionApproximatorRBFN(self.num_bases, 0.7) for _ in range(trajectory.dim)]
-        function_apps = [FunctionApproximatorLWR(self.num_bases, 0.5) for _ in range(trajectory.dim)]
+        # function_apps = [FunctionApproximatorLWR(self.num_bases, 0.5) for _ in range(trajectory.dim)]
+        function_apps = [FunctionApproximatorBSpline() for _ in range(trajectory.dim)]
         # function_apps = [FunctionApproximatorWLS() for _ in range(trajectory.dim)]
         # Setup DMP
         name='DmpBbo'
