@@ -1,158 +1,130 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Wed May 11 14:43:26 2022
+Created on Mon Nov 27 11:04:25 2023
 
 @author: abrk
 """
 
-
-# Import stuff
-import os
-import sys
-import pickle
 import numpy as np
+import pickle
 import matplotlib.pyplot as plt
 
-from dmpbbo.dmp.dmp_plotting import *
-from dmpbbo.dmp.Dmp import *
-from dmpbbo.dmp.Trajectory import *
-from dmpbbo.functionapproximators.FunctionApproximatorLWR import *
+
+from dmpbbo.dmps.Dmp import Dmp
+from dmpbbo.dmps.Trajectory import Trajectory
+from dmpbbo.functionapproximators.FunctionApproximatorBSpline import FunctionApproximatorBSpline
 
 from lfd_interface.msg import DemonstrationMsg
 
+from scipy.interpolate import CubicSpline, BSpline
 
-# Read demonstration file
 
-filename = "/home/abrk/ws_moveit/src/lfd_interface/data/demonstrations/testdemo_rviz.pickle"
+
+
+#%%
+
+def create_trajectory(demonstration, index = None):
+    n_time_steps = len(demonstration.joint_trajectory.points)
+    n_dim = len(demonstration.joint_trajectory.joint_names)
+
+    ys = np.zeros([n_time_steps,n_dim])
+    yds = np.zeros([n_time_steps,n_dim])
+    ydds = np.zeros([n_time_steps,n_dim])
+    ts = np.zeros(n_time_steps)
+
+    for (i,point) in enumerate(demonstration.joint_trajectory.points):
+        ys[i,:] = point.positions
+        yds[i,:] = point.velocities or None
+        ydds[i,:] = point.accelerations or None
+        ts[i] = point.time_from_start.to_sec()
+
+    if np.isnan(yds).any(): 
+        yds = None
+    if np.isnan(ydds).any(): 
+        ydds = None
+        
+    if index is None:
+        return Trajectory(ts, ys, yds, ydds)
+    else:
+        return Trajectory(ts, ys[:,[index]], yds[:,[index]], ydds[:,[index]])
+
+
+def plot(demo, plan):
+    lines, axs = demo.plot()
+    plt.setp(lines, linestyle="-", linewidth=4, color=(0.8, 0.8, 0.8))
+    # plt.setp(lines, label="demonstration")
+
+    lines, axs = plan.plot(axs)
+    plt.setp(lines, linestyle="--", linewidth=2, color=(0.0, 0.0, 0.5))
+    # plt.setp(lines, label="reproduced")
+    plt.tight_layout()
+
+    plt.legend()
+    t = f"Comparison between demonstration and reproduced"
+    plt.gcf().canvas.set_window_title(t)
+
+    plt.show()
+
+
+#%%
+
+filename = "/home/abrk/catkin_ws/src/lfd/lfd_interface/data/demonstrations/smoothfrplace/0.pickle"
 
 with open(filename, 'rb') as file:
     demonstration = pickle.load(file)
 
+index = 2
+traj = create_trajectory(demonstration, index)
 
-n_steps = len(demonstration.joint_trajectory.points)
-n_dim = len(demonstration.joint_trajectory.joint_names)
+#%%
 
-positions = np.zeros([n_steps,n_dim])
-ts = np.zeros(n_steps)
+function_apps = [FunctionApproximatorBSpline() for _ in range(traj.dim)]
+dmp = Dmp.from_traj(traj, function_apps, dmp_type="IJSPEERT_2002_MOVEMENT")    
 
+#%%
 
-for (i,point) in enumerate(demonstration.joint_trajectory.points):
-    positions[i,:] = point.positions
-    ts[i] = point.time_from_start.to_sec()
+# start = [-0.477703, 0.787349, -0.617041, -1.79873, 0.577409, 2.38477, -0.938441]
+# goal = [0.755491, 0.493148, 0.043999, -2.10643, 0.0042121, 2.55332, 1.62703]
+start = [-1, 0.787349, -0.617041, -1.79873, 0.577409, 2.38477, -1.5]
+goal = [0.755491, 0.493148, 0.043999, -2.10643, 0.0042121, 2.55332, 2]
+tau_scale = 1
 
-# Wrap in a dmpbbo Trajectory class
+dmp.tau *= tau_scale
+if len(start) != 0:
+    dmp.y_init = np.array(start[index])
+if len(goal) != 0:
+    dmp.y_attr = np.array(goal[index])
 
-traj = Trajectory(ts, positions)
+tau = dmp.tau
 
+#%%
 
-# # Plotting playground
-
-# fig = plt.figure(0)
-
-# axs = [fig.add_subplot(171), fig.add_subplot(172), fig.add_subplot(173), fig.add_subplot(174)
-#        , fig.add_subplot(175), fig.add_subplot(176), fig.add_subplot(177)]
-
-# for (ii,ax) in enumerate(axs):
-#     ax.plot(traj.ts_, traj.yds_[:,ii])
-    
-
-# play with traj variables
-
-ys = traj.ys_
-yds = traj.yds_
-ydds = traj.ydds_
-
-
-traj.yds_[-1,:] = 0
-traj.ydds_[-1,:] = 0
-
-#Train DMP
-
-function_apps = []
-
-for i in range(0,n_dim):
-    function_apps.append(FunctionApproximatorLWR(10))
-    
-name='Dmp'
-dmp_type='IJSPEERT_2002_MOVEMENT'
-# dmp_type='KULVICIUS_2012_JOINING'
-
-dmp = Dmp.from_traj(traj, function_apps, name, dmp_type)
-
-tau_exec = traj.ts_[-1] + 1
-n_steps = n_steps + 101
-ts = np.linspace(0,tau_exec,n_steps)
-
-( xs_ana, xds_ana, forcing_terms_ana, fa_outputs_ana) = dmp.analyticalSolution(ts)
-
+n_time_steps = 100
+ts = np.linspace(0,tau,n_time_steps)
 dt = ts[1]
-xs_step = np.zeros([n_steps,dmp.dim_])
-xds_step = np.zeros([n_steps,dmp.dim_])
-
-(x,xd) = dmp.integrateStart()
-xs_step[0,:] = x;
-xds_step[0,:] = xd;
-for tt in range(1,n_steps):
-    (xs_step[tt,:],xds_step[tt,:]) = dmp.integrateStep(dt,xs_step[tt-1,:]); 
 
 
+(x,xd) = dmp.integrate_start()
+xs_step = np.zeros([n_time_steps,x.shape[0]])
+xds_step = np.zeros([n_time_steps,x.shape[0]])
+f_step = np.zeros([n_time_steps,dmp._dim_y])
 
-# Plotting playground
+xs_step[0,:] = x
+xds_step[0,:] = xd
 
-fig = plt.figure(1)
-axs = [ fig.add_subplot(131), fig.add_subplot(132), fig.add_subplot(133) ] 
+for tt in range(1,n_time_steps):
+    f_step[tt,:] = dmp._compute_func_approx_predictions(xs_step[tt-1,dmp.PHASE])
+    (xs_step[tt,:],xds_step[tt,:]) = dmp.integrate_step(dt,xs_step[tt-1,:])
 
-lines = plotTrajectory(traj.asMatrix(),axs)
-plt.setp(lines, linestyle='-',  linewidth=4, color=(0.8,0.8,0.8), label='demonstration')
+new_traj = dmp.states_as_trajectory(ts,xs_step,xds_step)
 
-traj_reproduced = dmp.statesAsTrajectory(ts,xs_step,xds_step)
-lines = plotTrajectory(traj_reproduced.asMatrix(),axs)
-plt.setp(lines, linestyle='--', linewidth=2, color=(0.0,0.0,0.5), label='reproduced')
+#%%
+plot(traj, new_traj)
 
-plt.legend()
-fig.canvas.set_window_title('Comparison between demonstration and reproduced') 
+#%%
 
+altered_traj = dmp.states_as_trajectory(ts*2,xs_step,xds_step/2)
+plot(traj, altered_traj)
 
-fig = plt.figure(2)
-ts_xs_xds = np.column_stack((ts,xs_ana,xds_ana))
-plotDmp(ts_xs_xds,fig,forcing_terms_ana,fa_outputs_ana)
-fig.canvas.set_window_title('Analytical integration') 
-
-fig = plt.figure(3)
-ts_xs_xds = np.column_stack((ts,xs_step,xds_step))
-plotDmp(ts_xs_xds,fig)
-fig.canvas.set_window_title('Step-by-step integration') 
-
-
-# playing with reproduced trajectory
-ys = traj_reproduced.ys_
-yds = traj_reproduced.yds_
-ydds = traj_reproduced.ydds_
-
-
-# velocities = np.zeros([n_steps,n_dim])
-# accelerations = np.zeros([n_steps,n_dim])
-
-# for i in range(0,n_steps-1):
-#     velocities[i,:] = (positions[i+1,:] - positions[i,:])/(ts[i+1] - ts[i])
-
-# velocities[-1,:] = 0
-
-# for i in range(0,n_steps-1):
-#     accelerations[i,:] = (velocities[i+1,:] - velocities[i,:])/(ts[i+1] - ts[i])
-    
-# accelerations[-1,:] = 0
-
-# fig = plt.figure(1)
-
-# axs = [fig.add_subplot(171), fig.add_subplot(172), fig.add_subplot(173), fig.add_subplot(174)
-#        , fig.add_subplot(175), fig.add_subplot(176), fig.add_subplot(177)]
-
-# for (ii,ax) in enumerate(axs):
-#     ax.plot(ts, accelerations[:,ii])
-
-# plt.plot(ts, positions[:,1])
-
-
-
+#%%
