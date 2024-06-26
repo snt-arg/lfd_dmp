@@ -19,6 +19,8 @@ if __name__ == '__main__':
     rospy.init_node('dmp_bringup_node')
     
     dmp_method = rospy.get_param("~dmp_method")
+    training_mode = rospy.get_param("~training_mode")
+    num_kernels = rospy.get_param("~num_kernels")
     try:
         dmp_config = rospy.get_param("~dmpconfig")
     except:
@@ -29,7 +31,7 @@ if __name__ == '__main__':
         dmp_service = DMPService()
     elif dmp_method == 'dmpbbo':
         rospy.loginfo("Executing DMP BBO Method")
-        dmp_service = DMPBBOService()
+        dmp_service = DMPBBOService(training_mode=training_mode, num_kernels=num_kernels)
     elif dmp_method == 'dmpkarlsson':
         rospy.loginfo("Executing DMP Karlsson Method")
         dmp_service = DMPkarlssonService(dmp_config)

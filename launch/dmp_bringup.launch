@@ -1,6 +1,8 @@
 <launch>
     
     <arg name="dmp_method" default="dmpbbo"/>
+    <arg name="training_mode" default="bspline" doc="bspline, lwr, rbfn, wls"/>
+    <arg name="num_kernels" default="10"/>
     <arg name="robot_name" default="hebi"/>
 
     <group if="$(eval dmp_method == 'dmpros')">
@@ -13,6 +15,8 @@
     <group if="$(eval dmp_method == 'dmpbbo')">
         <node name="dmp_bringup" pkg="lfd_dmp" type="dmp_bringup.py" output="screen">
             <param name="dmp_method" value="$(arg dmp_method)"/>
+            <param name="training_mode" value="$(arg training_mode)"/>
+            <param name="num_kernels" value="$(arg num_kernels)"/>
         </node>
     </group>
 
