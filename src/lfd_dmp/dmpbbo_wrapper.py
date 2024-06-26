@@ -10,21 +10,29 @@ from dmpbbo.functionapproximators.FunctionApproximatorRBFN import FunctionApprox
 from dmpbbo.functionapproximators.FunctionApproximatorLWR import FunctionApproximatorLWR
 from dmpbbo.functionapproximators.FunctionApproximatorWLS import FunctionApproximatorWLS
 from dmpbbo.functionapproximators.FunctionApproximatorBSpline import FunctionApproximatorBSpline
+from dmpbbo.functionapproximators.FunctionApproximatorCustom import FunctionApproximatorCustom
 
 from lfd_dmp.dmp_wrapper import DMPWrapper
 
 class DMPBBOService(DMPWrapper):
 
-    def __init__(self):
+    def __init__(self, training_mode="bspline", num_kernels=10):
         super().__init__()
-        self.num_bases = 100
+        self.num_bases = num_kernels
+        self.training_mode = training_mode
 
     def train(self, trajectory):
 
-        # function_apps = [FunctionApproximatorRBFN(self.num_bases, 0.7) for _ in range(trajectory.dim)]
-        # function_apps = [FunctionApproximatorLWR(self.num_bases, 0.5) for _ in range(trajectory.dim)]
-        function_apps = [FunctionApproximatorBSpline() for _ in range(trajectory.dim)]
-        # function_apps = [FunctionApproximatorWLS() for _ in range(trajectory.dim)]
+        if self.training_mode == "bspline":
+            function_apps = [FunctionApproximatorBSpline() for _ in range(trajectory.dim)]
+        elif self.training_mode == "rbfn":
+            function_apps = [FunctionApproximatorRBFN(self.num_bases, 0.7) for _ in range(trajectory.dim)]
+        elif self.training_mode == "lwr":
+            function_apps = [FunctionApproximatorLWR(self.num_bases, 0.5) for _ in range(trajectory.dim)]
+        elif self.training_mode == "wls":
+            function_apps = [FunctionApproximatorWLS() for _ in range(trajectory.dim)]
+        elif self.training_mode == "custom":
+            function_apps = [FunctionApproximatorCustom(kernel="gaussian", num_bases=self.num_bases) for _ in range(trajectory.dim)]
         # Setup DMP
         name='DmpBbo'
         dmp_type='IJSPEERT_2002_MOVEMENT'
