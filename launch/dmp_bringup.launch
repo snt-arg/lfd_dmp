@@ -3,7 +3,7 @@
     <arg name="dmp_method" default="dmpbbo"/>
     <arg name="training_mode" default="bspline" doc="bspline, lwr, rbfn, wls"/>
     <arg name="num_kernels" default="10"/>
-    <arg name="robot_name" default="hebi"/>
+    <arg name="robot_ns" default="hebi"/>
 
     <group if="$(eval dmp_method == 'dmpros')">
         <include file="$(find dmp)/launch/dmp.launch"/>
@@ -13,17 +13,18 @@
     </group>
 
     <group if="$(eval dmp_method == 'dmpbbo')">
-        <node name="dmp_bringup" pkg="lfd_dmp" type="dmp_bringup.py" output="screen">
+        <node name="dmp_bringup_$(arg robot_ns)" pkg="lfd_dmp" type="dmp_bringup.py" output="screen">
             <param name="dmp_method" value="$(arg dmp_method)"/>
             <param name="training_mode" value="$(arg training_mode)"/>
             <param name="num_kernels" value="$(arg num_kernels)"/>
+            <param name="robot_ns" value="$(arg robot_ns)"/>
         </node>
     </group>
 
     <group if="$(eval dmp_method == 'dmpkarlsson')">
         <node name="dmp_bringup" pkg="lfd_dmp" type="dmp_bringup.py" output="screen">
             <param name="dmp_method" value="$(arg dmp_method)"/>
-            <rosparam command="load" file="$(find lfd_dmp)/config/$(arg dmp_method)-$(arg robot_name).yaml" />
+            <rosparam command="load" file="$(find lfd_dmp)/config/$(arg dmp_method)-$(arg robot_ns).yaml" />
         </node>
     </group>
 

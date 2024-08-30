@@ -15,14 +15,14 @@ from dmpbbo.dmps.Trajectory import Trajectory
 
 class DMPWrapper:
 
-    def __init__(self):
+    def __init__(self, robot_ns):
         #DMP Parameters
         self.n_time_steps = 100
         self.trained_dmps = {}
         self.trained_demos = {}
 
-        self.server_train_demonstration = rospy.Service("train_demonstration",TrainDemonstration, self.cb_train_demonstration)
-        self.server_plan_dmp = rospy.Service("plan_lfd",PlanLFD, self.cb_plan_dmp)
+        self.server_train_demonstration = rospy.Service(f"{robot_ns}/train_demonstration",TrainDemonstration, self.cb_train_demonstration)
+        self.server_plan_dmp = rospy.Service(f"{robot_ns}/plan_lfd",PlanLFD, self.cb_plan_dmp)
 
     def create_trajectory(self, demonstration):
         n_time_steps = len(demonstration.joint_trajectory.points)

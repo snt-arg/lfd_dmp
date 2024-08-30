@@ -16,8 +16,8 @@ from lfd_dmp.dmp_wrapper import DMPWrapper
 
 class DMPBBOService(DMPWrapper):
 
-    def __init__(self, training_mode="bspline", num_kernels=10):
-        super().__init__()
+    def __init__(self, robot_ns, training_mode="bspline", num_kernels=10):
+        super().__init__(robot_ns)
         self.num_bases = num_kernels
         self.training_mode = training_mode
 
