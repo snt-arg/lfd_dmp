@@ -118,7 +118,7 @@ class DMPWrapper:
 
         plt.legend()
         t = f"Comparison between demonstration and reproduced"
-        plt.gcf().canvas.set_window_title(t)
+        plt.gcf().canvas.manager.set_window_title(t)
 
         current_datetime = datetime.now().strftime('%Y%m%d%H%M%S')
         filename = '/tmp/' + f'output_dmp_{current_datetime}.svg'
