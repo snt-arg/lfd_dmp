@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
 import pickle
+from copy import deepcopy
 
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
@@ -66,7 +67,8 @@ class DMPWrapper:
         raise NotImplementedError()
 
     def init_dmp(self, name, start, goal, tau_scale):
-        self.dmp = self.trained_dmps[name]
+        self.dmp = deepcopy(self.trained_dmps[name])
+        # self.dmp = self.trained_dmps[name]
         self.dmp.tau *= tau_scale
         if len(start) != 0:
             self.dmp.y_init = np.array(start)
