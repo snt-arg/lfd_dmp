@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
 import pickle
+from copy import deepcopy
 
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
@@ -55,9 +56,10 @@ class DMPWrapper:
 
         dmp = self.train(traj)
 
+        demo_alias = req.demonstration.trajectory_type + req.demonstration.name
         # Store Trained DMP
-        self.trained_dmps[req.demonstration.name] = dmp
-        self.trained_demos[req.demonstration.name] = traj
+        self.trained_dmps[demo_alias] = dmp
+        self.trained_demos[demo_alias] = traj
 
         rospy.loginfo("dmp training completed successfully")
         return TrainDemonstrationResponse(True)
@@ -65,8 +67,8 @@ class DMPWrapper:
     def plan(self, ts):
         raise NotImplementedError()
 
-    def init_dmp(self, name, start, goal, tau_scale):
-        self.dmp = self.trained_dmps[name]
+    def init_dmp(self, alias, start, goal, tau_scale):
+        self.dmp = deepcopy(self.trained_dmps[alias])
         self.dmp.tau *= tau_scale
         if len(start) != 0:
             self.dmp.y_init = np.array(start)
@@ -75,7 +77,8 @@ class DMPWrapper:
         return self.dmp.tau
 
     def cb_plan_dmp(self, req : PlanLFDRequest):
-        tau = self.init_dmp(req.plan.name, req.plan.start.positions, req.plan.goal.positions, req.plan.tau)
+        demo_alias = req.plan.trajectory_type + req.plan.name
+        tau = self.init_dmp(demo_alias, req.plan.start.positions, req.plan.goal.positions, req.plan.tau)
 
         plan_tau = tau
         # plan_tau = tau+ 0.18
@@ -84,7 +87,7 @@ class DMPWrapper:
 
         traj_reproduced = self.plan(ts)
 
-        self.plot(self.trained_demos[req.plan.name], traj_reproduced)
+        self.plot(self.trained_demos[demo_alias], traj_reproduced)
 
         plan_path = JointTrajectory()
         plan_path.header.frame_id = "world"
